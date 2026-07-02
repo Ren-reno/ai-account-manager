@@ -1242,14 +1242,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('qd-note-title').addEventListener('input', autosaveQuestNote);
   document.getElementById('qd-note-body').addEventListener('input', autosaveQuestNote);
 
-  // Open task modal preload
-  document.querySelector('[onclick="openModal(\'modal-new-task\')"]')?.addEventListener('click', populateTaskModal);
-  document.querySelectorAll('[onclick*="modal-new-task"]').forEach(btn => {
+  // Open task modal preload — exact match on the onclick value so this only binds
+  // to the "+ Nueva Tarea" buttons. A substring selector (`[onclick*="modal-new-task"]`)
+  // also matched the modal overlay and its close/cancel buttons (they call
+  // closeModal/closeModalOutside with the same 'modal-new-task' id), which sit as
+  // ancestors of the modal content. That made ANY click inside the modal (e.g. opening
+  // the account <select>) re-run populateTaskModal(), rebuilding the select's options
+  // and resetting it back to the first account.
+  document.querySelectorAll('[onclick="openModal(\'modal-new-task\')"]').forEach(btn => {
     btn.addEventListener('click', populateTaskModal);
   });
 
-  // Account modal preload
-  document.querySelectorAll('[onclick*="modal-new-account"]').forEach(btn => {
+  // Account modal preload — same exact-match fix as above.
+  document.querySelectorAll('[onclick="openModal(\'modal-new-account\')"]').forEach(btn => {
     btn.addEventListener('click', populateAccountPlatformSelect);
   });
 

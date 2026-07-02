@@ -203,6 +203,11 @@ Si en algún momento las entradas del changelog empiezan a contradecir las secci
 
 ## Historial de cambios
 
+### 2026-07-02 (sesión 3)
+- Qué cambió: se corrigió un bug reportado por el usuario donde el select de cuenta del modal de nueva tarea "se quedaba fijo" y no dejaba elegir otra cuenta. Causa raíz: el listener que precarga el modal (`populateTaskModal`) se adjuntaba con un selector por substring (`[onclick*="modal-new-task"]`) que también matcheaba el overlay del modal y sus botones cerrar/cancelar (comparten el string `'modal-new-task'` en su `onclick`, aunque llaman a `closeModal`/`closeModalOutside`). Como el overlay envuelve todo el modal, cualquier click adentro (incluso abrir el propio `<select>`) burbujeaba y volvía a ejecutar `populateTaskModal()`, que reconstruye el `<select>` desde cero y lo resetea a la primera cuenta. Se cambió a un selector de coincidencia exacta (`[onclick="openModal('modal-new-task')"]`) para que el listener solo se adjunte a los botones reales de "+ Nueva Tarea". Mismo patrón y mismo fix aplicado al modal de nueva cuenta (`populateAccountPlatformSelect`), que tenía el bug idéntico.
+- Hallazgo de §8 resuelto: no listado explícitamente en §8 (bug reportado directamente por el usuario, no detectado en el análisis estático original).
+- Qué quedó pendiente: §8.5 (navegación rota en mobile), §8.6 (uso inconsistente de escHtml), §8.7 (evento DOMSubtreeModified obsoleto) y los pendientes de tooling/portafolio (§8.8-10) siguen abiertos.
+
 ### 2026-07-02 (sesión 2)
 - Qué cambió: saveTask() ahora bloquea (con toast de error) asignar una cuenta que ya está ocupada por otra tarea, tanto al crear como al editar; populateTaskModal() deshabilita esas opciones en el select (la cuenta propia de la tarea en edición sigue habilitada); taskNumber ahora se calcula como max(taskNumber existentes en la quest) + 1 en vez de count + 1, así que no se reusa un número tras borrar una tarea intermedia.
 - Hallazgo de §8 resuelto: 3 (UI, modal de nueva tarea) y 4 (integridad de datos, taskNumber).
