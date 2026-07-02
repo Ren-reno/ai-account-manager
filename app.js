@@ -269,10 +269,10 @@ function editCurrentQuest() { editQuest(currentQuestId); }
 function deleteCurrentQuest() { deleteQuest(currentQuestId); }
 
 // ===== TASK CRUD =====
-function populateTaskModal() {
+function populateTaskModal(editingTaskId) {
   const questSel = document.getElementById('task-quest-id');
   const accSel = document.getElementById('task-account-id');
-  const editId = document.getElementById('task-edit-id').value;
+  const editId = editingTaskId || document.getElementById('task-edit-id').value;
   const quests = DB.quests;
   const accounts = DB.accounts;
 
@@ -280,10 +280,19 @@ function populateTaskModal() {
     ? quests.map(q => `<option value="${q.id}">${q.name}</option>`).join('')
     : '<option value="">— Sin quests —</option>';
 
+  // La cuenta ya asignada a la tarea en edición sigue elegible aunque figure "ocupada"
+  // (está ocupada por esta misma tarea) — hallazgo §8.3.
+  const currentTask = editId ? DB.tasks.find(t => t.id === editId) : null;
+  const ownAccountId = currentTask ? currentTask.accountId : null;
+
   const freeParts = accounts.filter(a => a.status === 'free')
     .map(a => `<option value="${a.id}">[${a.platform}] ${a.alias || a.email}</option>`);
-  const busyParts = accounts.filter(a => a.status === 'busy')
-    .map(a => `<option value="${a.id}" style="color:var(--danger)">[${a.platform}] ${a.alias || a.email} (ocupada)</option>`);
+  const busyParts = accounts.filter(a => a.status === 'busy').map(a => {
+    const isOwn = a.id === ownAccountId;
+    const label = isOwn ? ' (ocupada por esta tarea)' : ' (ocupada)';
+    const disabledAttr = isOwn ? '' : 'disabled';
+    return `<option value="${a.id}" style="color:var(--danger)" ${disabledAttr}>[${a.platform}] ${a.alias || a.email}${label}</option>`;
+  });
 
   accSel.innerHTML = accounts.length
     ? freeParts.join('') + (busyParts.length ? '<optgroup label="Ocupadas">' + busyParts.join('') + '</optgroup>' : '')
@@ -318,6 +327,14 @@ function saveTask() {
   let tasks = DB.tasks;
   let accounts = DB.accounts;
 
+  // No permitir asignar una cuenta que ya está ocupada por OTRA tarea (hallazgo §8.3).
+  // Si es la propia cuenta de la tarea que se está editando, sí se permite (no cambia nada).
+  const chosenAccount = accounts.find(a => a.id === accountId);
+  if (chosenAccount && chosenAccount.status === 'busy' && chosenAccount.activeTaskId !== editId) {
+    showToast('Esa cuenta ya tiene una tarea activa. Libérala o elige otra.', 'error');
+    return;
+  }
+
   if (editId) {
     const idx = tasks.findIndex(t => t.id === editId);
     if (idx !== -1) {
@@ -336,11 +353,13 @@ function saveTask() {
       };
     }
   } else {
-    // Count tasks for this quest
-    const questTaskCount = tasks.filter(t => t.questId === questId).length + 1;
+    // Número correlativo por quest: max existente + 1, no cantidad + 1 (hallazgo §8.4).
+    // Evita reusar un taskNumber si se borró una tarea intermedia.
+    const questTasks = tasks.filter(t => t.questId === questId);
+    const maxTaskNumber = questTasks.reduce((max, t) => Math.max(max, t.taskNumber || 0), 0);
     const newTask = {
       id: uid(), questId, accountId, desc, status, reactivation, notesClosure,
-      taskNumber: questTaskCount, createdAt: now(),
+      taskNumber: maxTaskNumber + 1, createdAt: now(),
       completedAt: status === 'completada' ? now() : null,
     };
     tasks.push(newTask);
@@ -372,7 +391,7 @@ function editTask(id) {
   const t = DB.tasks.find(t => t.id === id);
   if (!t) return;
   resetForms();
-  populateTaskModal();
+  populateTaskModal(id);
   document.getElementById('task-edit-id').value = t.id;
   document.getElementById('task-quest-id').value = t.questId;
   document.getElementById('task-account-id').value = t.accountId;

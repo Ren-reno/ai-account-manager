@@ -161,8 +161,8 @@ Se tomaron explícitamente durante el diseño y están reflejadas en el código:
 **Integridad de datos**
 1. ~~`deleteQuest()` borra la quest, sus tareas y sus notas, pero **no libera las cuentas** que tenían tareas activas de esa quest — quedan en `status:'busy'` apuntando (`activeTaskId`) a una tarea que ya no existe.~~ **Resuelto 2026-07-02** — ver changelog.
 2. ~~`deleteAccount()` no valida si la cuenta está en uso ni limpia las tareas que la referencian — quedan con un `accountId` huérfano (el render defensivo evita errores, pero la info de esa cuenta desaparece en silencio).~~ **Resuelto 2026-07-02** — ver changelog.
-3. El modal de nueva tarea permite elegir una cuenta ya **ocupada** (aparece marcada en rojo bajo "Ocupadas", pero no está bloqueada). Al guardar, la cuenta pasa a apuntar a la tarea nueva y pierde la referencia a la anterior — contradice la decisión del §7 de "una cuenta, una tarea activa".
-4. `taskNumber` puede **repetirse** dentro de una quest: se calcula como `(tareas actuales de la quest) + 1` en el momento de creación, así que borrar una tarea intermedia y crear una nueva puede reusar un número ya existente.
+3. ~~El modal de nueva tarea permite elegir una cuenta ya **ocupada** (aparece marcada en rojo bajo "Ocupadas", pero no está bloqueada). Al guardar, la cuenta pasa a apuntar a la tarea nueva y pierde la referencia a la anterior — contradice la decisión del §7 de "una cuenta, una tarea activa".~~ **Resuelto 2026-07-02** — ver changelog.
+4. ~~`taskNumber` puede **repetirse** dentro de una quest: se calcula como `(tareas actuales de la quest) + 1` en el momento de creación, así que borrar una tarea intermedia y crear una nueva puede reusar un número ya existente.~~ **Resuelto 2026-07-02** — ver changelog.
 
 **UI**
 5. **Navegación rota en mobile**: la media query a 768px oculta el sidebar completo (`translateX(-100%)`) pero no hay ningún botón para volver a mostrarlo — en pantallas chicas no queda forma de cambiar de vista.
@@ -202,6 +202,11 @@ Dos velocidades, no una sola:
 Si en algún momento las entradas del changelog empiezan a contradecir las secciones 3-8, es la señal de que toca una regeneración completa.
 
 ## Historial de cambios
+
+### 2026-07-02 (sesión 2)
+- Qué cambió: saveTask() ahora bloquea (con toast de error) asignar una cuenta que ya está ocupada por otra tarea, tanto al crear como al editar; populateTaskModal() deshabilita esas opciones en el select (la cuenta propia de la tarea en edición sigue habilitada); taskNumber ahora se calcula como max(taskNumber existentes en la quest) + 1 en vez de count + 1, así que no se reusa un número tras borrar una tarea intermedia.
+- Hallazgo de §8 resuelto: 3 (UI, modal de nueva tarea) y 4 (integridad de datos, taskNumber).
+- Qué quedó pendiente: §8.6 (uso inconsistente de escHtml) y §8.7 (evento DOMSubtreeModified obsoleto) siguen abiertos, además de los pendientes de tooling/portafolio (§8.8-10).
 
 ### 2026-07-02
 - Qué cambió: deleteQuest() ahora libera cuentas cuya activeTaskId apuntaba a una tarea de la quest eliminada; deleteAccount() valida tareas vinculadas (aviso específico en el confirm) y limpia accountId a null en vez de dejarlo huérfano.
