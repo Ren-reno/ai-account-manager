@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- SIDEBAR NAV -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">⬡</span>
+    <span class="logo-text">AI<strong>Tracker</strong></span>
+  </div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-view="dashboard">
+      <span class="nav-icon">◈</span> Dashboard
+    </button>
+    <button class="nav-item" data-view="quests">
+      <span class="nav-icon">◎</span> Quests
+    </button>
+    <button class="nav-item" data-view="tasks">
+      <span class="nav-icon">◷</span> Tareas
+    </button>
+    <button class="nav-item" data-view="accounts">
+      <span class="nav-icon">◉</span> Cuentas
+    </button>
+    <button class="nav-item" data-view="notes">
+      <span class="nav-icon">◫</span> Notas
+    </button>
+    <button class="nav-item" data-view="stats">
+      <span class="nav-icon">◬</span> Stats
+    </button>
+  </nav>
+  <div class="sidebar-bottom">
+    <button class="nav-item" data-view="settings">
+      <span class="nav-icon">◧</span> Settings
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="view-dashboard" class="view active">
+    <header class="view-header">
+      <h1>Dashboard</h1>
+      <span class="date-badge" id="today-date"></span>
+    </header>
+
+    <div class="dashboard-grid">
+      <section class="dash-section">
+        <h2 class="section-title">Cuentas ocupadas</h2>
+        <div id="dash-accounts-busy" class="card-list"></div>
+      </section>
+      <section class="dash-section">
+        <h2 class="section-title">Quests activas</h2>
+        <div id="dash-quests-active" class="card-list"></div>
+      </section>
+      <section class="dash-section">
+        <h2 class="section-title">Tareas esperando tokens</h2>
+        <div id="dash-tasks-waiting" class="card-list"></div>
+      </section>
+      <section class="dash-section">
+        <h2 class="section-title">Acciones rápidas</h2>
+        <div class="quick-actions">
+          <button class="btn-primary" onclick="openModal('modal-new-quest')">+ Nueva Quest</button>
+          <button class="btn-primary" onclick="openModal('modal-new-task')">+ Nueva Tarea</button>
+          <button class="btn-secondary" onclick="openModal('modal-new-note-global')">+ Nota global</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===== QUESTS ===== -->
+  <div id="view-quests" class="view">
+    <header class="view-header">
+      <h1>Quests</h1>
+      <div class="header-actions">
+        <div class="search-wrap">
+          <input type="text" id="quest-search" class="search-input" placeholder="Buscar quests...">
+        </div>
+        <button class="btn-primary" onclick="openModal('modal-new-quest')">+ Nueva Quest</button>
+      </div>
+    </header>
+    <div class="filter-tags" id="quest-tag-filters"></div>
+    <div id="quests-list" class="card-list"></div>
+  </div>
+
+  <!-- ===== QUEST DETAIL ===== -->
+  <div id="view-quest-detail" class="view">
+    <header class="view-header">
+      <button class="btn-back" onclick="showView('quests')">← Volver</button>
+      <div class="quest-detail-header">
+        <h1 id="qd-title"></h1>
+        <div class="quest-detail-actions">
+          <button class="btn-icon" onclick="editCurrentQuest()" title="Editar">✎</button>
+          <button class="btn-icon danger" onclick="deleteCurrentQuest()" title="Eliminar">✕</button>
+        </div>
+      </div>
+    </header>
+    <div class="tabs">
+      <button class="tab active" data-tab="qd-tasks">Tareas</button>
+      <button class="tab" data-tab="qd-notes">Notas</button>
+      <button class="tab" data-tab="qd-stats">Stats</button>
+    </div>
+    <div id="qd-tasks" class="tab-content active">
+      <div class="tab-toolbar">
+        <button class="btn-primary btn-sm" onclick="openNewTaskForQuest()">+ Nueva tarea</button>
+      </div>
+      <div id="qd-tasks-list" class="card-list"></div>
+    </div>
+    <div id="qd-notes" class="tab-content">
+      <div class="notes-layout">
+        <div class="notes-sidebar">
+          <button class="btn-primary btn-sm btn-full" onclick="newQuestNote()">+ Nueva nota</button>
+          <div id="qd-notes-list" class="notes-nav-list"></div>
+        </div>
+        <div class="notes-editor">
+          <input type="text" id="qd-note-title" class="note-title-input" placeholder="Título de la nota...">
+          <textarea id="qd-note-body" class="note-body-input" placeholder="Escribe aquí..."></textarea>
+          <div class="note-meta">
+            <span id="qd-note-save-status" class="save-status"></span>
+            <div class="note-tags-input-wrap">
+              <input type="text" id="qd-note-tags" class="tags-input" placeholder="#etiqueta (Enter para agregar)">
+              <div id="qd-note-tags-display" class="tags-display"></div>
+            </div>
+          </div>
+          <button class="btn-icon danger note-delete-btn" id="qd-note-delete-btn" onclick="deleteCurrentQuestNote()" title="Eliminar nota">✕ Eliminar nota</button>
+        </div>
+      </div>
+    </div>
+    <div id="qd-stats" class="tab-content">
+      <div id="qd-stats-content" class="stats-grid"></div>
+    </div>
+  </div>
+
+  <!-- ===== TASKS ===== -->
+  <div id="view-tasks" class="view">
+    <header class="view-header">
+      <h1>Tareas</h1>
+      <div class="header-actions">
+        <div class="search-wrap">
+          <input type="text" id="task-search" class="search-input" placeholder="Buscar tareas...">
+        </div>
+        <button class="btn-primary" onclick="openModal('modal-new-task')">+ Nueva Tarea</button>
+      </div>
+    </header>
+    <div class="filters-row">
+      <select id="task-filter-quest" class="filter-select">
+        <option value="">Todas las quests</option>
+      </select>
+      <select id="task-filter-platform" class="filter-select">
+        <option value="">Todas las plataformas</option>
+      </select>
+      <select id="task-filter-status" class="filter-select">
+        <option value="">Todos los estados</option>
+        <option value="en_progreso">En progreso</option>
+        <option value="esperando_tokens">Esperando tokens</option>
+        <option value="completada">Completada</option>
+      </select>
+    </div>
+    <div id="tasks-list" class="card-list"></div>
+  </div>
+
+  <!-- ===== ACCOUNTS ===== -->
+  <div id="view-accounts" class="view">
+    <header class="view-header">
+      <h1>Cuentas</h1>
+      <button class="btn-primary" onclick="openModal('modal-new-account')">+ Nueva Cuenta</button>
+    </header>
+    <div class="accounts-status-grid" id="accounts-grid"></div>
+  </div>
+
+  <!-- ===== NOTES GLOBAL ===== -->
+  <div id="view-notes" class="view">
+    <header class="view-header">
+      <h1>Notas globales</h1>
+      <div class="header-actions">
+        <div class="search-wrap">
+          <input type="text" id="global-note-search" class="search-input" placeholder="Buscar notas...">
+        </div>
+        <button class="btn-primary" onclick="newGlobalNote()">+ Nueva nota</button>
+      </div>
+    </header>
+    <div class="filter-tags" id="global-note-tag-filters"></div>
+    <div class="notes-layout full-height">
+      <div class="notes-sidebar">
+        <div id="global-notes-list" class="notes-nav-list"></div>
+      </div>
+      <div class="notes-editor">
+        <div id="notes-empty-state" class="empty-state">
+          <span>◫</span>
+          <p>Selecciona una nota o crea una nueva</p>
+        </div>
+        <div id="notes-editor-content" style="display:none; height:100%; display:none; flex-direction:column; gap:12px;">
+          <input type="text" id="global-note-title" class="note-title-input" placeholder="Título de la nota...">
+          <textarea id="global-note-body" class="note-body-input" placeholder="Escribe aquí..."></textarea>
+          <div class="note-meta">
+            <span id="global-note-save-status" class="save-status"></span>
+            <div class="note-tags-input-wrap">
+              <input type="text" id="global-note-tags-input" class="tags-input" placeholder="#etiqueta (Enter para agregar)">
+              <div id="global-note-tags-display" class="tags-display"></div>
+            </div>
+          </div>
+          <button class="btn-icon danger note-delete-btn" onclick="deleteCurrentGlobalNote()">✕ Eliminar nota</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STATS ===== -->
+  <div id="view-stats" class="view">
+    <header class="view-header">
+      <h1>Estadísticas</h1>
+    </header>
+    <div id="stats-content" class="stats-grid"></div>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div id="view-settings" class="view">
+    <header class="view-header">
+      <h1>Settings</h1>
+    </header>
+    <div class="settings-sections">
+      <section class="settings-section">
+        <h2>Plataformas</h2>
+        <p class="settings-desc">Agrega plataformas de IA personalizadas además de Claude y ChatGPT.</p>
+        <div id="platforms-list" class="tag-list-edit"></div>
+        <div class="input-row">
+          <input type="text" id="new-platform-input" class="input-field" placeholder="Ej: Gemini, Grok...">
+          <button class="btn-primary btn-sm" onclick="addPlatform()">Agregar</button>
+        </div>
+      </section>
+      <section class="settings-section">
+        <h2>Datos</h2>
+        <p class="settings-desc">Exporta o importa todos tus datos en formato JSON.</p>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="exportData()">⬇ Exportar datos</button>
+          <label class="btn-secondary import-label">
+            ⬆ Importar datos
+            <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none">
+          </label>
+        </div>
+        <div class="danger-zone">
+          <h3>Zona de peligro</h3>
+          <button class="btn-danger" onclick="clearAllData()">Borrar todos los datos</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+</main>
+
+<!-- =========== MODALS =========== -->
+
+<!-- New Quest -->
+<div id="modal-new-quest" class="modal-overlay" onclick="closeModalOutside(event, 'modal-new-quest')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-quest-title">Nueva Quest</h2>
+      <button class="modal-close" onclick="closeModal('modal-new-quest')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="quest-edit-id">
+      <label class="field-label">Nombre *</label>
+      <input type="text" id="quest-name" class="input-field" placeholder="Ej: Construir app de trading">
+      <label class="field-label">Descripción</label>
+      <textarea id="quest-desc" class="input-field textarea-sm" placeholder="¿Cuál es el objetivo principal?"></textarea>
+      <label class="field-label">Estado</label>
+      <select id="quest-status" class="input-field">
+        <option value="activa">Activa</option>
+        <option value="pausada">Pausada</option>
+        <option value="completada">Completada</option>
+      </select>
+      <label class="field-label">Etiquetas</label>
+      <input type="text" id="quest-tags-input" class="tags-input" placeholder="#etiqueta (Enter para agregar)">
+      <div id="quest-tags-display" class="tags-display"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-new-quest')">Cancelar</button>
+      <button class="btn-primary" onclick="saveQuest()">Guardar Quest</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Task -->
+<div id="modal-new-task" class="modal-overlay" onclick="closeModalOutside(event, 'modal-new-task')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-task-title">Nueva Tarea</h2>
+      <button class="modal-close" onclick="closeModal('modal-new-task')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="task-edit-id">
+      <label class="field-label">Quest *</label>
+      <select id="task-quest-id" class="input-field"></select>
+      <label class="field-label">Cuenta *</label>
+      <select id="task-account-id" class="input-field"></select>
+      <label class="field-label">Descripción *</label>
+      <textarea id="task-desc" class="input-field textarea-sm" placeholder="¿Qué vas a hacer en esta sesión?"></textarea>
+      <label class="field-label">Estado</label>
+      <select id="task-status" class="input-field">
+        <option value="en_progreso">En progreso</option>
+        <option value="esperando_tokens">Esperando tokens</option>
+        <option value="completada">Completada</option>
+      </select>
+      <div id="task-reactivation-wrap" class="field-group" style="display:none">
+        <label class="field-label">Fecha y hora de reactivación</label>
+        <input type="datetime-local" id="task-reactivation" class="input-field">
+        <label class="field-label">Notas de cierre</label>
+        <textarea id="task-notes-closure" class="input-field textarea-sm" placeholder="¿Dónde quedó? ¿Qué falta?"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-new-task')">Cancelar</button>
+      <button class="btn-primary" onclick="saveTask()">Guardar Tarea</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Account -->
+<div id="modal-new-account" class="modal-overlay" onclick="closeModalOutside(event, 'modal-new-account')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-account-title">Nueva Cuenta</h2>
+      <button class="modal-close" onclick="closeModal('modal-new-account')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="account-edit-id">
+      <label class="field-label">Plataforma *</label>
+      <select id="account-platform" class="input-field"></select>
+      <label class="field-label">Email *</label>
+      <input type="email" id="account-email" class="input-field" placeholder="mi@correo.com">
+      <label class="field-label">Alias (opcional)</label>
+      <input type="text" id="account-alias" class="input-field" placeholder="Ej: Claude personal, GPT trabajo">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-new-account')">Cancelar</button>
+      <button class="btn-primary" onclick="saveAccount()">Guardar Cuenta</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Global Note -->
+<div id="modal-new-note-global" class="modal-overlay" onclick="closeModalOutside(event, 'modal-new-note-global')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Nueva nota global</h2>
+      <button class="modal-close" onclick="closeModal('modal-new-note-global')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field-label">Título</label>
+      <input type="text" id="quick-note-title" class="input-field" placeholder="Título...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-new-note-global')">Cancelar</button>
+      <button class="btn-primary" onclick="createQuickGlobalNote()">Crear nota</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
