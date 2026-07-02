@@ -159,8 +159,8 @@ Se tomaron explícitamente durante el diseño y están reflejadas en el código:
 ## 8. Hallazgos del análisis estático
 
 **Integridad de datos**
-1. `deleteQuest()` borra la quest, sus tareas y sus notas, pero **no libera las cuentas** que tenían tareas activas de esa quest — quedan en `status:'busy'` apuntando (`activeTaskId`) a una tarea que ya no existe.
-2. `deleteAccount()` no valida si la cuenta está en uso ni limpia las tareas que la referencian — quedan con un `accountId` huérfano (el render defensivo evita errores, pero la info de esa cuenta desaparece en silencio).
+1. ~~`deleteQuest()` borra la quest, sus tareas y sus notas, pero **no libera las cuentas** que tenían tareas activas de esa quest — quedan en `status:'busy'` apuntando (`activeTaskId`) a una tarea que ya no existe.~~ **Resuelto 2026-07-02** — ver changelog.
+2. ~~`deleteAccount()` no valida si la cuenta está en uso ni limpia las tareas que la referencian — quedan con un `accountId` huérfano (el render defensivo evita errores, pero la info de esa cuenta desaparece en silencio).~~ **Resuelto 2026-07-02** — ver changelog.
 3. El modal de nueva tarea permite elegir una cuenta ya **ocupada** (aparece marcada en rojo bajo "Ocupadas", pero no está bloqueada). Al guardar, la cuenta pasa a apuntar a la tarea nueva y pierde la referencia a la anterior — contradice la decisión del §7 de "una cuenta, una tarea activa".
 4. `taskNumber` puede **repetirse** dentro de una quest: se calcula como `(tareas actuales de la quest) + 1` en el momento de creación, así que borrar una tarea intermedia y crear una nueva puede reusar un número ya existente.
 
@@ -202,6 +202,11 @@ Dos velocidades, no una sola:
 Si en algún momento las entradas del changelog empiezan a contradecir las secciones 3-8, es la señal de que toca una regeneración completa.
 
 ## Historial de cambios
+
+### 2026-07-02
+- Qué cambió: deleteQuest() ahora libera cuentas cuya activeTaskId apuntaba a una tarea de la quest eliminada; deleteAccount() valida tareas vinculadas (aviso específico en el confirm) y limpia accountId a null en vez de dejarlo huérfano.
+- Hallazgo de §8 resuelto: 1 (integridad de datos, deleteQuest) y 2 (integridad de datos, deleteAccount).
+- Qué quedó pendiente: §8.3 (modal de nueva tarea permite elegir cuenta ocupada) y §8.4 (taskNumber puede repetirse) siguen abiertos.
 
 <!-- Agregar una entrada nueva arriba de esta línea al cerrar cada sesión de trabajo.
 Formato sugerido:

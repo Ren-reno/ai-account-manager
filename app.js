@@ -237,14 +237,32 @@ function editQuest(id) {
 function deleteQuest(id) {
   if (!confirm('¿Eliminar esta quest y todas sus tareas y notas?')) return;
   let quests = DB.quests.filter(q => q.id !== id);
+  const removedTaskIds = DB.tasks.filter(t => t.questId === id).map(t => t.id);
   let tasks = DB.tasks.filter(t => t.questId !== id);
   let qNotes = DB.questNotes.filter(n => n.questId !== id);
+
+  // Liberar cuentas que quedaron apuntando a una tarea de esta quest (hallazgo §8.1)
+  if (removedTaskIds.length) {
+    const accounts = DB.accounts;
+    let accountsChanged = false;
+    accounts.forEach(a => {
+      if (a.activeTaskId && removedTaskIds.includes(a.activeTaskId)) {
+        a.status = 'free';
+        a.activeTaskId = null;
+        accountsChanged = true;
+      }
+    });
+    if (accountsChanged) DB.saveAccounts(accounts);
+  }
+
   DB.saveQuests(quests);
   DB.saveTasks(tasks);
   DB.saveQuestNotes(qNotes);
   showToast('Quest eliminada', 'error');
   if (currentView === 'quest-detail') showView('quests');
   else renderQuests();
+  if (currentView === 'accounts') renderAccounts();
+  if (currentView === 'dashboard') renderDashboard();
 }
 
 function editCurrentQuest() { editQuest(currentQuestId); }
@@ -437,11 +455,35 @@ function editAccount(id) {
 }
 
 function deleteAccount(id) {
-  if (!confirm('¿Eliminar esta cuenta?')) return;
+  const account = DB.accounts.find(a => a.id === id);
+  if (!account) return;
+
+  const linkedTasks = DB.tasks.filter(t => t.accountId === id);
+  const activeLinkedTasks = linkedTasks.filter(t => t.status !== 'completada');
+
+  let msg = '¿Eliminar esta cuenta?';
+  if (activeLinkedTasks.length) {
+    msg = `Esta cuenta tiene ${activeLinkedTasks.length} tarea(s) activa(s) asociada(s). ` +
+          `Si la eliminas, esas tareas quedarán sin cuenta asignada. ¿Eliminar de todas formas?`;
+  } else if (linkedTasks.length) {
+    msg = `Esta cuenta tiene ${linkedTasks.length} tarea(s) asociada(s) (ya completadas). ` +
+          `Si la eliminas, esas tareas quedarán sin cuenta asignada. ¿Eliminar de todas formas?`;
+  }
+  if (!confirm(msg)) return;
+
+  // Limpiar la referencia huérfana en las tareas que apuntaban a esta cuenta (hallazgo §8.2)
+  if (linkedTasks.length) {
+    const tasks = DB.tasks.map(t => t.accountId === id ? { ...t, accountId: null, updatedAt: now() } : t);
+    DB.saveTasks(tasks);
+  }
+
   const accounts = DB.accounts.filter(a => a.id !== id);
   DB.saveAccounts(accounts);
   showToast('Cuenta eliminada');
   renderAccounts();
+  if (currentView === 'tasks') renderTasks();
+  if (currentView === 'dashboard') renderDashboard();
+  if (currentView === 'quest-detail') renderQuestDetail(currentQuestId);
 }
 
 function freeAccount(id) {
