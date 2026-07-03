@@ -700,7 +700,7 @@ function newQuestNote() {
   renderQuestNotes();
 }
 
-function renderQuestNotes() {
+function renderQuestNotesList() {
   const notes = DB.questNotes.filter(n => n.questId === currentQuestId);
   const list = document.getElementById('qd-notes-list');
   if (!list) return;
@@ -711,6 +711,11 @@ function renderQuestNotes() {
         <div class="note-nav-date">${fmtDate(n.updatedAt)}</div>
       </div>`).join('')
     : '<div style="color:var(--muted);font-size:12px;padding:8px;">Sin notas</div>';
+}
+
+function renderQuestNotes() {
+  const notes = DB.questNotes.filter(n => n.questId === currentQuestId);
+  renderQuestNotesList();
 
   if (currentQuestNoteId) {
     const note = notes.find(n => n.id === currentQuestNoteId);
@@ -761,7 +766,11 @@ function autosaveQuestNote() {
       notes[idx].updatedAt = now();
       DB.saveQuestNotes(notes);
       document.getElementById('qd-note-save-status').textContent = '✓ Guardado';
-      renderQuestNotes();
+      // Solo refresca la lista lateral (título/fecha), no el editor completo:
+      // renderQuestNotes() recarga la nota vía loadQuestNoteEditor(), que
+      // resetea qd-note-save-status a '' y pisaba el '✓ Guardado' de la línea
+      // anterior en el mismo tick, antes de que el navegador llegara a pintarlo.
+      renderQuestNotesList();
     }
   }, 1500);
 }
