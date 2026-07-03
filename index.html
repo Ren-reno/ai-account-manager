@@ -8,8 +8,15 @@
 </head>
 <body>
 
+<!-- MOBILE NAV TOGGLE (hidden on desktop, shown ≤768px — see style.css) -->
+<button id="mobile-nav-toggle" class="mobile-nav-toggle" onclick="toggleSidebar()" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+  <span class="mobile-nav-icon">☰</span>
+</button>
+<!-- Click-outside-to-close backdrop, only relevant/visible on mobile when sidebar is open -->
+<div id="sidebar-backdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
+
 <!-- SIDEBAR NAV -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <span class="logo-icon">⬡</span>
     <span class="logo-text">AI<strong>Tracker</strong></span>

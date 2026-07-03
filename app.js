@@ -69,6 +69,8 @@ let currentView = 'dashboard';
 let currentQuestId = null;
 
 function showView(name, questId) {
+  closeSidebar(); // no-op on desktop; on mobile, navigating should close the open menu
+
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -96,6 +98,43 @@ function showView(name, questId) {
     settings: renderSettings,
   };
   if (renders[name]) renders[name]();
+}
+
+// ===== MOBILE NAV =====
+// Hallazgo §8.5: en mobile el sidebar quedaba oculto (translateX(-100%)) sin ningún
+// botón para volver a mostrarlo. Estas funciones controlan el botón hamburguesa
+// (#mobile-nav-toggle) y el backdrop (#sidebar-backdrop) agregados en index.html.
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  if (sidebar.classList.contains('open')) closeSidebar();
+  else openSidebar();
+}
+
+function openSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const toggle = document.getElementById('mobile-nav-toggle');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', 'true');
+    const icon = toggle.querySelector('.mobile-nav-icon');
+    if (icon) icon.textContent = '✕';
+  }
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const toggle = document.getElementById('mobile-nav-toggle');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', 'false');
+    const icon = toggle.querySelector('.mobile-nav-icon');
+    if (icon) icon.textContent = '☰';
+  }
 }
 
 // ===== MODAL SYSTEM =====
@@ -1263,6 +1302,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Expose for inline onclick
+window.toggleSidebar = toggleSidebar;
+window.closeSidebar = closeSidebar;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalOutside = closeModalOutside;
