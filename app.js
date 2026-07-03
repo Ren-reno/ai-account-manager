@@ -67,6 +67,7 @@ function getPlatforms() {
 // ===== VIEW ROUTER =====
 let currentView = 'dashboard';
 let currentQuestId = null;
+let currentQuestStatusFilter = 'activa';
 
 function showView(name, questId) {
   closeSidebar(); // no-op on desktop; on mobile, navigating should close the open menu
@@ -824,7 +825,7 @@ function renderDashboard() {
             </div>
             <span class="badge badge-busy">ocupada</span>
           </div>
-          ${task ? `<div class="card-desc">${escHtml(quest?.name || '')} — ${escHtml(task.desc)}</div>` : ''}
+          ${task ? `<div class="card-desc card-desc-clamp">${escHtml(quest?.name || '')} — ${escHtml(task.desc)}</div>` : ''}
           ${task?.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
         </div>`;
       }).join('')
@@ -867,10 +868,33 @@ function renderDashboard() {
 }
 
 // --- Quests ---
+function renderQuestStatusFilter() {
+  const bar = document.getElementById('quest-status-filter');
+  if (!bar) return;
+  const options = [
+    { value: 'activa', label: 'Activas' },
+    { value: 'pausada', label: 'Pausadas' },
+    { value: 'completada', label: 'Completadas' },
+    { value: '', label: 'Todas' }
+  ];
+  bar.innerHTML = options.map(o =>
+    `<span class="tag ${currentQuestStatusFilter === o.value ? 'active' : ''}" data-status="${o.value}">${o.label}</span>`
+  ).join('');
+  bar.querySelectorAll('.tag').forEach(el => {
+    el.onclick = () => {
+      currentQuestStatusFilter = el.dataset.status;
+      renderQuests();
+    };
+  });
+}
+
 function renderQuests() {
   let quests = DB.quests;
   const search = (document.getElementById('quest-search')?.value || '').toLowerCase();
   const activeFilters = getActiveTagFilters('quest-tag-filters');
+
+  renderQuestStatusFilter();
+  if (currentQuestStatusFilter) quests = quests.filter(q => q.status === currentQuestStatusFilter);
 
   const allTags = [...new Set(quests.flatMap(q => q.tags || []))];
   renderTagFilterBar('quest-tag-filters', allTags, renderQuests);
@@ -907,7 +931,7 @@ function renderQuests() {
           </div>
         </div>`;
       }).join('')
-    : '<div class="list-empty">Sin quests. ¡Crea tu primera quest!</div>';
+    : `<div class="list-empty">${DB.quests.length ? 'No hay quests que coincidan con el filtro.' : 'Sin quests. ¡Crea tu primera quest!'}</div>`;
 }
 
 // --- Quest Detail ---
