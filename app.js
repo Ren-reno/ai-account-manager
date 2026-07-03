@@ -316,7 +316,7 @@ function populateTaskModal(editingTaskId) {
   const accounts = DB.accounts;
 
   questSel.innerHTML = quests.length
-    ? quests.map(q => `<option value="${q.id}">${q.name}</option>`).join('')
+    ? quests.map(q => `<option value="${q.id}">${escHtml(q.name)}</option>`).join('')
     : '<option value="">— Sin quests —</option>';
 
   // La cuenta ya asignada a la tarea en edición sigue elegible aunque figure "ocupada"
@@ -325,12 +325,12 @@ function populateTaskModal(editingTaskId) {
   const ownAccountId = currentTask ? currentTask.accountId : null;
 
   const freeParts = accounts.filter(a => a.status === 'free')
-    .map(a => `<option value="${a.id}">[${a.platform}] ${a.alias || a.email}</option>`);
+    .map(a => `<option value="${a.id}">[${escHtml(a.platform)}] ${escHtml(a.alias || a.email)}</option>`);
   const busyParts = accounts.filter(a => a.status === 'busy').map(a => {
     const isOwn = a.id === ownAccountId;
     const label = isOwn ? ' (ocupada por esta tarea)' : ' (ocupada)';
     const disabledAttr = isOwn ? '' : 'disabled';
-    return `<option value="${a.id}" style="color:var(--danger)" ${disabledAttr}>[${a.platform}] ${a.alias || a.email}${label}</option>`;
+    return `<option value="${a.id}" style="color:var(--danger)" ${disabledAttr}>[${escHtml(a.platform)}] ${escHtml(a.alias || a.email)}${label}</option>`;
   });
 
   accSel.innerHTML = accounts.length
@@ -472,7 +472,7 @@ function toggleReactivationField() {
 function populateAccountPlatformSelect() {
   const sel = document.getElementById('account-platform');
   const platforms = getPlatforms();
-  sel.innerHTML = platforms.map(p => `<option value="${p}">${p}</option>`).join('');
+  sel.innerHTML = platforms.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
 }
 
 function saveAccount() {
@@ -803,8 +803,8 @@ function renderDashboard() {
         return `<div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">${a.alias || a.email}</div>
-              <div class="card-sub">${a.platform} · ${a.email}</div>
+              <div class="card-title">${escHtml(a.alias || a.email)}</div>
+              <div class="card-sub">${escHtml(a.platform)} · ${escHtml(a.email)}</div>
             </div>
             <span class="badge badge-busy">ocupada</span>
           </div>
@@ -843,7 +843,7 @@ function renderDashboard() {
             <div class="card-title">Tarea #${t.taskNumber} — ${escHtml(quest?.name || '')}</div>
             <span class="badge badge-waiting">esperando</span>
           </div>
-          <div class="card-sub">${acc ? `${acc.platform} · ${acc.alias || acc.email}` : ''}</div>
+          <div class="card-sub">${acc ? `${escHtml(acc.platform)} · ${escHtml(acc.alias || acc.email)}` : ''}</div>
           ${t.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span></div>` : ''}
         </div>`;
       }).join('')
@@ -916,7 +916,7 @@ function renderQuestTasks(questId) {
           <div class="card-header">
             <div>
               <div class="card-title">Tarea #${t.taskNumber}</div>
-              <div class="card-sub">${acc ? `[${acc.platform}] ${acc.alias || acc.email}` : ''} · ${fmtDate(t.createdAt)}</div>
+              <div class="card-sub">${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <span class="badge badge-${t.status}">${statusLabel(t.status)}</span>
@@ -959,7 +959,7 @@ function renderQuestStats(questId) {
     <div class="stat-card"><div class="stat-label">Tiempo total</div><div class="stat-value" style="font-size:22px">${totalTime || '—'}</div></div>
     <div class="stat-card" style="grid-column: span 2">
       <div class="stat-label">Por plataforma</div>
-      <ul class="stat-list">${Object.entries(byPlatform).map(([p,c]) => `<li><span>${p}</span><span>${c} tarea${c!==1?'s':''}</span></li>`).join('')}</ul>
+      <ul class="stat-list">${Object.entries(byPlatform).map(([p,c]) => `<li><span>${escHtml(p)}</span><span>${c} tarea${c!==1?'s':''}</span></li>`).join('')}</ul>
     </div>
   `;
 }
@@ -997,7 +997,7 @@ function renderTasks() {
   if (platSel) {
     const cur = platSel.value;
     platSel.innerHTML = '<option value="">Todas las plataformas</option>' +
-      platforms.map(p => `<option value="${p}" ${p===cur?'selected':''}>${p}</option>`).join('');
+      platforms.map(p => `<option value="${escHtml(p)}" ${p===cur?'selected':''}>${escHtml(p)}</option>`).join('');
   }
 
   if (search) tasks = tasks.filter(t => t.desc.toLowerCase().includes(search));
@@ -1021,7 +1021,7 @@ function renderTasks() {
                 ${quest ? `<span style="color:var(--muted);font-size:12px">${escHtml(quest.name)} /</span> ` : ''}
                 Tarea #${t.taskNumber}
               </div>
-              <div class="card-sub">${acc ? `[${acc.platform}] ${acc.alias || acc.email}` : ''} · ${fmtDate(t.createdAt)}</div>
+              <div class="card-sub">${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <span class="badge badge-${t.status}">${statusLabel(t.status)}</span>
@@ -1056,7 +1056,7 @@ function renderAccounts() {
         return `<div class="account-card ${isFree ? 'free' : 'busy'}">
           <div class="account-card-header">
             <div>
-              <span class="platform-tag">${a.platform}</span>
+              <span class="platform-tag">${escHtml(a.platform)}</span>
               <div class="account-alias" style="margin-top:6px">${escHtml(a.alias || a.email)}</div>
               <div class="account-email">${escHtml(a.email)}</div>
             </div>
@@ -1126,7 +1126,7 @@ function renderStats() {
     </div>
     <div class="stat-card" style="grid-column:span 2">
       <div class="stat-label">Tareas por plataforma</div>
-      <ul class="stat-list">${Object.entries(byPlatform).map(([p,c])=>`<li><span>${p}</span><span>${c}</span></li>`).join('') || '<li><span style="color:var(--muted)">Sin datos</span></li>'}</ul>
+      <ul class="stat-list">${Object.entries(byPlatform).map(([p,c])=>`<li><span>${escHtml(p)}</span><span>${c}</span></li>`).join('') || '<li><span style="color:var(--muted)">Sin datos</span></li>'}</ul>
     </div>
   `;
 }
