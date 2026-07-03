@@ -1,0 +1,74 @@
+diff --git a/CONTEXT.md b/CONTEXT.md
+index 5eda298..8649ee1 100644
+--- a/CONTEXT.md
++++ b/CONTEXT.md
+@@ -203,6 +203,11 @@ Si en algún momento las entradas del changelog empiezan a contradecir las secci
+ 
+ ## Historial de cambios
+ 
++### 2026-07-02 (sesión 5)
++- Qué cambió: se corrigieron dos bugs reportados por el usuario. (1) Las notas de quest "se filtraban" entre quests: `currentQuestNoteId` es una variable global que no se reseteaba al cambiar de quest desde `showView()`, y `renderQuestNotes()` no limpiaba el editor cuando la nota activa no pertenecía a la quest actual (`notes.find(...)` daba `undefined` y el `if (note)` simplemente no entraba, dejando el texto de la nota anterior en los inputs). Fix: `showView()` resetea `currentQuestNoteId = null` cuando `currentQuestId` cambia, y se agregó `clearQuestNoteEditor()` (mismo patrón que `loadQuestNoteEditor()`) que se llama desde `renderQuestNotes()` cuando no hay nota activa válida para la quest actual. (2) El badge de estado en las tarjetas de la pestaña Cuentas aparecía visualmente fuera de la card: `.account-card-header` es `display:flex` con `justify-content:space-between`, pero el `<div>` izquierdo (platform/alias/email) no tenía `min-width:0`, así que un email largo sin espacios no se podía encoger y empujaba el badge fuera del ancho disponible. Fix en `style.css`: `min-width:0` en el contenedor izquierdo, `overflow-wrap:break-word` en `.account-alias`/`.account-email`, `flex-shrink:0` en el badge y `gap:8px` en el header.
++- Hallazgo de §8 resuelto: no listado explícitamente en §8 (ambos bugs reportados directamente por el usuario, no detectados en el análisis estático original).
++- Qué quedó pendiente: §8.7 (evento `DOMSubtreeModified` obsoleto) y los pendientes de tooling/portafolio (§8.8-10) siguen abiertos.
++
+ ### 2026-07-02 (sesión 4)
+ - Qué cambió: se agregó navegación mobile funcional — botón hamburguesa (`#mobile-nav-toggle`) + backdrop (`#sidebar-backdrop`) en `index.html`, estado `.sidebar.open` en la media query de `style.css`, y `toggleSidebar()`/`openSidebar()`/`closeSidebar()` en `app.js` (esta última se llama automáticamente desde `showView()`, así que elegir una vista cierra el menú). Además, se unificó el uso de `escHtml()`: ahora se escapa consistentemente `platform`, `alias`, `email` y el `name` de quest en todos los templates que faltaban (selects del modal de nueva tarea y de nueva cuenta, tarjetas de dashboard/tareas/cuentas, y el desglose "por plataforma" de ambas vistas de stats).
+ - Hallazgo de §8 resuelto: 5 (UI, navegación rota en mobile) y 6 (seguridad/higiene, uso inconsistente de escHtml).
+diff --git a/app.js b/app.js
+index 3273616..d534787 100644
+--- a/app.js
++++ b/app.js
+@@ -83,6 +83,7 @@ function showView(name, questId) {
+   currentView = name;
+ 
+   if (name === 'quest-detail' && questId) {
++    if (currentQuestId !== questId) currentQuestNoteId = null;
+     currentQuestId = questId;
+     renderQuestDetail(questId);
+     return;
+@@ -712,10 +713,25 @@ function renderQuestNotes() {
+ 
+   if (currentQuestNoteId) {
+     const note = notes.find(n => n.id === currentQuestNoteId);
+-    if (note) loadQuestNoteEditor(note);
++    if (note) {
++      loadQuestNoteEditor(note);
++    } else {
++      currentQuestNoteId = null;
++      clearQuestNoteEditor();
++    }
++  } else {
++    clearQuestNoteEditor();
+   }
+ }
+ 
++function clearQuestNoteEditor() {
++  document.getElementById('qd-note-title').value = '';
++  document.getElementById('qd-note-body').value = '';
++  setTags('qd-note-tags-display', []);
++  document.getElementById('qd-note-save-status').textContent = '';
++  document.getElementById('qd-note-delete-btn').style.display = 'none';
++}
++
+ function selectQuestNote(id) {
+   currentQuestNoteId = id;
+   const note = DB.questNotes.find(n => n.id === id);
+diff --git a/style.css b/style.css
+index cd525e9..cd79da8 100644
+--- a/style.css
++++ b/style.css
+@@ -552,9 +552,11 @@ textarea.input-field { resize: vertical; min-height: 70px; }
+ .account-card.free  { border-left: 3px solid var(--success); }
+ .account-card.busy  { border-left: 3px solid var(--danger); }
+ 
+-.account-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+-.account-alias { font-weight: 600; font-size: 14px; }
+-.account-email { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
++.account-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
++.account-card-header > div { min-width: 0; }
++.account-card-header > .badge { flex-shrink: 0; }
++.account-alias { font-weight: 600; font-size: 14px; overflow-wrap: break-word; }
++.account-email { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); overflow-wrap: break-word; }
+ .account-task-info { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+ .account-task-info strong { color: var(--text); }
+ .account-card-actions { display: flex; gap: 6px; margin-top: 12px; }

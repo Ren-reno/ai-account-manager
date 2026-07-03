@@ -83,6 +83,7 @@ function showView(name, questId) {
   currentView = name;
 
   if (name === 'quest-detail' && questId) {
+    if (currentQuestId !== questId) currentQuestNoteId = null;
     currentQuestId = questId;
     renderQuestDetail(questId);
     return;
@@ -712,8 +713,23 @@ function renderQuestNotes() {
 
   if (currentQuestNoteId) {
     const note = notes.find(n => n.id === currentQuestNoteId);
-    if (note) loadQuestNoteEditor(note);
+    if (note) {
+      loadQuestNoteEditor(note);
+    } else {
+      currentQuestNoteId = null;
+      clearQuestNoteEditor();
+    }
+  } else {
+    clearQuestNoteEditor();
   }
+}
+
+function clearQuestNoteEditor() {
+  document.getElementById('qd-note-title').value = '';
+  document.getElementById('qd-note-body').value = '';
+  setTags('qd-note-tags-display', []);
+  document.getElementById('qd-note-save-status').textContent = '';
+  document.getElementById('qd-note-delete-btn').style.display = 'none';
 }
 
 function selectQuestNote(id) {
