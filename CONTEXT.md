@@ -165,10 +165,10 @@ Se tomaron explícitamente durante el diseño y están reflejadas en el código:
 4. ~~`taskNumber` puede **repetirse** dentro de una quest: se calcula como `(tareas actuales de la quest) + 1` en el momento de creación, así que borrar una tarea intermedia y crear una nueva puede reusar un número ya existente.~~ **Resuelto 2026-07-02** — ver changelog.
 
 **UI**
-5. **Navegación rota en mobile**: la media query a 768px oculta el sidebar completo (`translateX(-100%)`) pero no hay ningún botón para volver a mostrarlo — en pantallas chicas no queda forma de cambiar de vista.
+5. ~~**Navegación rota en mobile**: la media query a 768px oculta el sidebar completo (`translateX(-100%)`) pero no hay ningún botón para volver a mostrarlo — en pantallas chicas no queda forma de cambiar de vista.~~ **Resuelto 2026-07-02** — ver changelog.
 
 **Seguridad / higiene de código**
-6. `escHtml()` existe y se usa en varios lugares, pero de forma **inconsistente**: `email`, `alias`, `platform` y el `name` de quest se insertan sin escapar en varios templates (selects de tareas, tarjetas de dashboard y de cuentas). Riesgo real bajo mientras los datos sean locales y de un solo usuario, pero conviene unificar antes de pensar en backend o multiusuario.
+6. ~~`escHtml()` existe y se usa en varios lugares, pero de forma **inconsistente**: `email`, `alias`, `platform` y el `name` de quest se insertan sin escapar en varios templates (selects de tareas, tarjetas de dashboard y de cuentas). Riesgo real bajo mientras los datos sean locales y de un solo usuario, pero conviene unificar antes de pensar en backend o multiusuario.~~ **Resuelto 2026-07-02** — ver changelog.
 7. Se usa el evento `DOMSubtreeModified` (obsoleto, no estándar) para reaccionar a cambios en las etiquetas de una nota global. Conviene reemplazarlo por una llamada directa a la función correspondiente al agregar/quitar un tag.
 
 **Tooling / portafolio**
@@ -202,6 +202,11 @@ Dos velocidades, no una sola:
 Si en algún momento las entradas del changelog empiezan a contradecir las secciones 3-8, es la señal de que toca una regeneración completa.
 
 ## Historial de cambios
+
+### 2026-07-02 (sesión 4)
+- Qué cambió: se agregó navegación mobile funcional — botón hamburguesa (`#mobile-nav-toggle`) + backdrop (`#sidebar-backdrop`) en `index.html`, estado `.sidebar.open` en la media query de `style.css`, y `toggleSidebar()`/`openSidebar()`/`closeSidebar()` en `app.js` (esta última se llama automáticamente desde `showView()`, así que elegir una vista cierra el menú). Además, se unificó el uso de `escHtml()`: ahora se escapa consistentemente `platform`, `alias`, `email` y el `name` de quest en todos los templates que faltaban (selects del modal de nueva tarea y de nueva cuenta, tarjetas de dashboard/tareas/cuentas, y el desglose "por plataforma" de ambas vistas de stats).
+- Hallazgo de §8 resuelto: 5 (UI, navegación rota en mobile) y 6 (seguridad/higiene, uso inconsistente de escHtml).
+- Qué quedó pendiente: §8.7 (evento `DOMSubtreeModified` obsoleto) y los pendientes de tooling/portafolio (§8.8-10) siguen abiertos. Nota fuera de alcance: el render de tags (`renderTagsDisplay`, `renderTagFilterBar`) tampoco pasa por `escHtml()` — no estaba en el hallazgo §8.6 original (que solo mencionaba email/alias/platform/quest name) así que no se tocó en esta sesión, pero si se decide seguir unificando el patrón de escapado, es el siguiente candidato obvio.
 
 ### 2026-07-02 (sesión 3)
 - Qué cambió: se corrigió un bug reportado por el usuario donde el select de cuenta del modal de nueva tarea "se quedaba fijo" y no dejaba elegir otra cuenta. Causa raíz: el listener que precarga el modal (`populateTaskModal`) se adjuntaba con un selector por substring (`[onclick*="modal-new-task"]`) que también matcheaba el overlay del modal y sus botones cerrar/cancelar (comparten el string `'modal-new-task'` en su `onclick`, aunque llaman a `closeModal`/`closeModalOutside`). Como el overlay envuelve todo el modal, cualquier click adentro (incluso abrir el propio `<select>`) burbujeaba y volvía a ejecutar `populateTaskModal()`, que reconstruye el `<select>` desde cero y lo resetea a la primera cuenta. Se cambió a un selector de coincidencia exacta (`[onclick="openModal('modal-new-task')"]`) para que el listener solo se adjunte a los botones reales de "+ Nueva Tarea". Mismo patrón y mismo fix aplicado al modal de nueva cuenta (`populateAccountPlatformSelect`), que tenía el bug idéntico.
