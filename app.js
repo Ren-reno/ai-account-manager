@@ -70,6 +70,13 @@ let currentQuestId = null;
 let currentQuestStatusFilter = 'activa';
 
 function showView(name, questId) {
+  // Si había una edición de nota de quest pendiente de autoguardar (el debounce
+  // de 1.5s todavía no corrió), la guardamos YA antes de navegar. Si no,
+  // DB.questNotes queda desactualizado y al volver a esta misma quest
+  // renderQuestNotes()/loadQuestNoteEditor() recarga el valor viejo por encima
+  // de lo que el usuario acaba de escribir — ver hallazgo de sesión 8 en
+  // CONTEXT.md. flushQuestNoteAutosave() no hace nada si no hay nada pendiente.
+  flushQuestNoteAutosave();
   closeSidebar(); // no-op on desktop; on mobile, navigating should close the open menu
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -692,6 +699,7 @@ let questNoteAutosaveTimer = null;
 
 function newQuestNote() {
   if (!currentQuestId) return;
+  flushQuestNoteAutosave(); // no perder una edición pendiente de la nota que se estaba viendo
   const notes = DB.questNotes;
   const note = { id: uid(), questId: currentQuestId, title: 'Nueva nota', body: '', tags: [], createdAt: now(), updatedAt: now() };
   notes.unshift(note);
@@ -739,6 +747,7 @@ function clearQuestNoteEditor() {
 }
 
 function selectQuestNote(id) {
+  flushQuestNoteAutosave(); // no perder una edición pendiente de la nota que se estaba viendo
   currentQuestNoteId = id;
   const note = DB.questNotes.find(n => n.id === id);
   if (note) { renderQuestNotes(); loadQuestNoteEditor(note); }
@@ -752,19 +761,25 @@ function loadQuestNoteEditor(note) {
   document.getElementById('qd-note-delete-btn').style.display = 'inline-flex';
 }
 
+function commitQuestNoteSave() {
+  if (!currentQuestNoteId) return false;
+  const notes = DB.questNotes;
+  const idx = notes.findIndex(n => n.id === currentQuestNoteId);
+  if (idx === -1) return false;
+  notes[idx].title = document.getElementById('qd-note-title').value || 'Sin título';
+  notes[idx].body = document.getElementById('qd-note-body').value;
+  notes[idx].tags = getTags('qd-note-tags-display');
+  notes[idx].updatedAt = now();
+  DB.saveQuestNotes(notes);
+  return true;
+}
+
 function autosaveQuestNote() {
   clearTimeout(questNoteAutosaveTimer);
   document.getElementById('qd-note-save-status').textContent = 'Guardando...';
   questNoteAutosaveTimer = setTimeout(() => {
-    if (!currentQuestNoteId) return;
-    const notes = DB.questNotes;
-    const idx = notes.findIndex(n => n.id === currentQuestNoteId);
-    if (idx !== -1) {
-      notes[idx].title = document.getElementById('qd-note-title').value || 'Sin título';
-      notes[idx].body = document.getElementById('qd-note-body').value;
-      notes[idx].tags = getTags('qd-note-tags-display');
-      notes[idx].updatedAt = now();
-      DB.saveQuestNotes(notes);
+    questNoteAutosaveTimer = null;
+    if (commitQuestNoteSave()) {
       document.getElementById('qd-note-save-status').textContent = '✓ Guardado';
       // Solo refresca la lista lateral (título/fecha), no el editor completo:
       // renderQuestNotes() recarga la nota vía loadQuestNoteEditor(), que
@@ -775,9 +790,25 @@ function autosaveQuestNote() {
   }, 1500);
 }
 
+// Guarda de inmediato un cambio pendiente (sin esperar los 1.5s del debounce)
+// y cancela el timer. Se llama antes de cualquier acción que cambie de nota,
+// de quest o de vista — si no, un DB.questNotes desactualizado le "gana la
+// carrera" al timer: renderQuestNotes()/loadQuestNoteEditor() recarga el
+// valor viejo por encima de lo recién escrito, y cuando el timer finalmente
+// corre, guarda ese valor viejo (efectivamente descartando la edición).
+// No hace nada si no hay ningún autoguardado pendiente.
+function flushQuestNoteAutosave() {
+  if (!questNoteAutosaveTimer) return;
+  clearTimeout(questNoteAutosaveTimer);
+  questNoteAutosaveTimer = null;
+  commitQuestNoteSave();
+}
+
 function deleteCurrentQuestNote() {
   if (!currentQuestNoteId) return;
   if (!confirm('¿Eliminar esta nota?')) return;
+  clearTimeout(questNoteAutosaveTimer); // la nota se borra, no tiene sentido autoguardarla
+  questNoteAutosaveTimer = null;
   const notes = DB.questNotes.filter(n => n.id !== currentQuestNoteId);
   DB.saveQuestNotes(notes);
   const remaining = notes.filter(n => n.questId === currentQuestId);
@@ -1329,6 +1360,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('qd-note-title').addEventListener('input', autosaveQuestNote);
   document.getElementById('qd-note-body').addEventListener('input', autosaveQuestNote);
+
+  // Red de seguridad adicional: si se cierra/refresca la pestaña dentro de la
+  // ventana de 1.5s del debounce, igual queda guardado.
+  window.addEventListener('beforeunload', flushQuestNoteAutosave);
 
   // Open task modal preload — exact match on the onclick value so this only binds
   // to the "+ Nueva Tarea" buttons. A substring selector (`[onclick*="modal-new-task"]`)
