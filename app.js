@@ -161,8 +161,8 @@ function closeModalOutside(e, id) {
 }
 function resetForms() {
   ['quest-edit-id','quest-name','quest-desc','quest-status','quest-tags-input',
-   'task-edit-id','task-quest-id','task-account-id','task-desc','task-status','task-reactivation','task-notes-closure',
-   'account-edit-id','account-email','account-alias','quick-note-title','new-platform-input'
+   'task-edit-id','task-quest-id','task-account-id','task-title','task-desc','task-status','task-reactivation','task-notes-closure',
+   'account-edit-id','account-email','account-alias','account-wait-id','account-wait-reactivation','account-wait-note','quick-note-title','new-platform-input'
   ].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -335,15 +335,15 @@ function populateTaskModal(editingTaskId) {
 
   const freeParts = accounts.filter(a => a.status === 'free')
     .map(a => `<option value="${a.id}">[${escHtml(a.platform)}] ${escHtml(a.alias || a.email)}</option>`);
-  const busyParts = accounts.filter(a => a.status === 'busy').map(a => {
+  const busyParts = accounts.filter(a => a.status !== 'free').map(a => {
     const isOwn = a.id === ownAccountId;
-    const label = isOwn ? ' (ocupada por esta tarea)' : ' (ocupada)';
+    const label = isOwn ? ' (ocupada por esta tarea)' : (a.status === 'esperando_tokens' ? ' (esperando tokens)' : ' (ocupada)');
     const disabledAttr = isOwn ? '' : 'disabled';
     return `<option value="${a.id}" style="color:var(--danger)" ${disabledAttr}>[${escHtml(a.platform)}] ${escHtml(a.alias || a.email)}${label}</option>`;
   });
 
   accSel.innerHTML = accounts.length
-    ? freeParts.join('') + (busyParts.length ? '<optgroup label="Ocupadas">' + busyParts.join('') + '</optgroup>' : '')
+    ? freeParts.join('') + (busyParts.length ? '<optgroup label="No disponibles">' + busyParts.join('') + '</optgroup>' : '')
     : '<option value="">— Sin cuentas —</option>';
 
   // Pre-select if in quest detail
@@ -362,6 +362,7 @@ function openNewTaskForQuest() {
 function saveTask() {
   const questId = document.getElementById('task-quest-id').value;
   const accountId = document.getElementById('task-account-id').value;
+  const title = document.getElementById('task-title').value.trim();
   const desc = document.getElementById('task-desc').value.trim();
   if (!questId || !accountId || !desc) {
     showToast('Completa los campos obligatorios', 'error');
@@ -375,11 +376,12 @@ function saveTask() {
   let tasks = DB.tasks;
   let accounts = DB.accounts;
 
-  // No permitir asignar una cuenta que ya está ocupada por OTRA tarea (hallazgo §8.3).
+  // No permitir asignar una cuenta que ya está ocupada por OTRA tarea, o que está
+  // marcada esperando tokens (hallazgo §8.3, extendido para el estado nuevo).
   // Si es la propia cuenta de la tarea que se está editando, sí se permite (no cambia nada).
   const chosenAccount = accounts.find(a => a.id === accountId);
-  if (chosenAccount && chosenAccount.status === 'busy' && chosenAccount.activeTaskId !== editId) {
-    showToast('Esa cuenta ya tiene una tarea activa. Libérala o elige otra.', 'error');
+  if (chosenAccount && chosenAccount.status !== 'free' && chosenAccount.activeTaskId !== editId) {
+    showToast('Esa cuenta no está disponible. Libérala o elige otra.', 'error');
     return;
   }
 
@@ -395,7 +397,7 @@ function saveTask() {
           accounts[oldAccIdx].activeTaskId = null;
         }
       }
-      tasks[idx] = { ...old, questId, accountId, desc, status, reactivation, notesClosure,
+      tasks[idx] = { ...old, questId, accountId, title, desc, status, reactivation, notesClosure,
         updatedAt: now(),
         completedAt: status === 'completada' ? (old.completedAt || now()) : null,
       };
@@ -406,7 +408,7 @@ function saveTask() {
     const questTasks = tasks.filter(t => t.questId === questId);
     const maxTaskNumber = questTasks.reduce((max, t) => Math.max(max, t.taskNumber || 0), 0);
     const newTask = {
-      id: uid(), questId, accountId, desc, status, reactivation, notesClosure,
+      id: uid(), questId, accountId, title, desc, status, reactivation, notesClosure,
       taskNumber: maxTaskNumber + 1, createdAt: now(),
       completedAt: status === 'completada' ? now() : null,
     };
@@ -443,6 +445,7 @@ function editTask(id) {
   document.getElementById('task-edit-id').value = t.id;
   document.getElementById('task-quest-id').value = t.questId;
   document.getElementById('task-account-id').value = t.accountId;
+  document.getElementById('task-title').value = t.title || '';
   document.getElementById('task-desc').value = t.desc || '';
   document.getElementById('task-status').value = t.status || 'en_progreso';
   document.getElementById('task-reactivation').value = t.reactivation || '';
@@ -560,6 +563,8 @@ function freeAccount(id) {
     const taskId = accounts[idx].activeTaskId;
     accounts[idx].status = 'free';
     accounts[idx].activeTaskId = null;
+    accounts[idx].waitReactivation = '';
+    accounts[idx].waitNote = '';
     DB.saveAccounts(accounts);
     if (taskId) {
       const tasks = DB.tasks;
@@ -569,6 +574,35 @@ function freeAccount(id) {
     showToast('Cuenta liberada ✓', 'success');
     renderAccounts();
   }
+}
+
+// Marcar una cuenta libre como "esperando tokens" sin necesidad de crear una tarea
+// (pedido del usuario: se acaban los tokens y no siempre hay una tarea pendiente).
+function markAccountWaiting(id) {
+  const a = DB.accounts.find(a => a.id === id);
+  if (!a || a.status !== 'free') return;
+  document.getElementById('account-wait-id').value = id;
+  document.getElementById('account-wait-reactivation').value = '';
+  document.getElementById('account-wait-note').value = '';
+  openModal('modal-account-wait');
+}
+
+function saveAccountWait() {
+  const id = document.getElementById('account-wait-id').value;
+  const reactivation = document.getElementById('account-wait-reactivation').value;
+  const note = document.getElementById('account-wait-note').value.trim();
+  const accounts = DB.accounts;
+  const idx = accounts.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  accounts[idx].status = 'esperando_tokens';
+  accounts[idx].waitReactivation = reactivation;
+  accounts[idx].waitNote = note;
+  accounts[idx].updatedAt = now();
+  DB.saveAccounts(accounts);
+  closeModal('modal-account-wait');
+  showToast('Cuenta marcada esperando tokens ⏳', 'success');
+  renderAccounts();
+  if (currentView === 'dashboard') renderDashboard();
 }
 
 // ===== NOTES CRUD =====
@@ -865,7 +899,7 @@ function renderDashboard() {
             </div>
             <span class="badge badge-busy">ocupada</span>
           </div>
-          ${task ? `<div class="card-desc card-desc-clamp">${escHtml(quest?.name || '')} — ${escHtml(task.desc)}</div>` : ''}
+          ${task ? `<div class="card-desc card-desc-clamp">${escHtml(quest?.name || '')}${task.title ? ' — ' + escHtml(task.title) : ''} — ${escHtml(task.desc)}</div>` : ''}
           ${task?.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
         </div>`;
       }).join('')
@@ -897,7 +931,7 @@ function renderDashboard() {
         const acc = accounts.find(a => a.id === t.accountId);
         return `<div class="card">
           <div class="card-header">
-            <div class="card-title">Tarea #${t.taskNumber} — ${escHtml(quest?.name || '')}</div>
+            <div class="card-title">Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''} — ${escHtml(quest?.name || '')}</div>
             <span class="badge badge-waiting">esperando</span>
           </div>
           <div class="card-sub">${acc ? `${escHtml(acc.platform)} · ${escHtml(acc.alias || acc.email)}` : ''}</div>
@@ -905,6 +939,23 @@ function renderDashboard() {
         </div>`;
       }).join('')
     : '<div class="list-empty">Sin tareas en espera</div>';
+
+  // Accounts marked "esperando tokens" directly, sin tarea asociada (pedido del usuario)
+  const waitingAccounts = accounts.filter(a => a.status === 'esperando_tokens');
+  const waEl = document.getElementById('dash-accounts-waiting');
+  waEl.innerHTML = waitingAccounts.length
+    ? waitingAccounts.map(a => `<div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">${escHtml(a.alias || a.email)}</div>
+              <div class="card-sub">${escHtml(a.platform)} · ${escHtml(a.email)}</div>
+            </div>
+            <span class="badge badge-esperando_tokens">esperando</span>
+          </div>
+          ${a.waitNote ? `<div class="card-desc card-desc-clamp">${escHtml(a.waitNote)}</div>` : ''}
+          ${a.waitReactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(a.waitReactivation)}</span></div>` : ''}
+        </div>`).join('')
+    : '<div class="list-empty">Sin cuentas esperando tokens 🟢</div>';
 }
 
 // --- Quests ---
@@ -995,7 +1046,7 @@ function renderQuestTasks(questId) {
         return `<div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">Tarea #${t.taskNumber}</div>
+              <div class="card-title">Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''}</div>
               <div class="card-sub">${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
@@ -1080,7 +1131,7 @@ function renderTasks() {
       platforms.map(p => `<option value="${escHtml(p)}" ${p===cur?'selected':''}>${escHtml(p)}</option>`).join('');
   }
 
-  if (search) tasks = tasks.filter(t => t.desc.toLowerCase().includes(search));
+  if (search) tasks = tasks.filter(t => t.desc.toLowerCase().includes(search) || (t.title || '').toLowerCase().includes(search));
   if (questFilter) tasks = tasks.filter(t => t.questId === questFilter);
   if (platformFilter) tasks = tasks.filter(t => {
     const acc = accounts.find(a => a.id === t.accountId);
@@ -1099,7 +1150,7 @@ function renderTasks() {
             <div>
               <div class="card-title">
                 ${quest ? `<span style="color:var(--muted);font-size:12px">${escHtml(quest.name)} /</span> ` : ''}
-                Tarea #${t.taskNumber}
+                Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''}
               </div>
               <div class="card-sub">${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
             </div>
@@ -1133,23 +1184,30 @@ function renderAccounts() {
         const task = a.activeTaskId ? tasks.find(t => t.id === a.activeTaskId) : null;
         const quest = task ? quests.find(q => q.id === task.questId) : null;
         const isFree = a.status === 'free';
-        return `<div class="account-card ${isFree ? 'free' : 'busy'}">
+        const isWaiting = a.status === 'esperando_tokens';
+        return `<div class="account-card ${a.status}">
           <div class="account-card-header">
             <div>
               <span class="platform-tag">${escHtml(a.platform)}</span>
               <div class="account-alias" style="margin-top:6px">${escHtml(a.alias || a.email)}</div>
               <div class="account-email">${escHtml(a.email)}</div>
             </div>
-            <span class="badge badge-${isFree ? 'free' : 'busy'}">${isFree ? 'libre' : 'ocupada'}</span>
+            <span class="badge badge-${a.status}">${statusLabel(a.status)}</span>
           </div>
-          ${!isFree && task ? `
+          ${a.status === 'busy' && task ? `
           <div class="account-task-info">
-            <div><strong>${escHtml(quest?.name || '')}</strong> — Tarea #${task.taskNumber}</div>
+            <div><strong>${escHtml(quest?.name || '')}</strong> — Tarea #${task.taskNumber}${task.title ? ' — ' + escHtml(task.title) : ''}</div>
             <div style="margin-top:4px">${escHtml(task.desc.slice(0,80))}${task.desc.length>80?'...':''}</div>
             ${task.reactivation ? `<div style="margin-top:6px"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
           </div>` : ''}
+          ${isWaiting && (a.waitNote || a.waitReactivation) ? `
+          <div class="account-task-info">
+            ${a.waitNote ? `<div>${escHtml(a.waitNote)}</div>` : ''}
+            ${a.waitReactivation ? `<div style="margin-top:6px"><span class="reactivation-badge">⟳ ${fmtDatetime(a.waitReactivation)}</span></div>` : ''}
+          </div>` : ''}
           <div class="account-card-actions">
-            ${!isFree ? `<button class="btn-secondary btn-sm" onclick="freeAccount('${a.id}')">Liberar</button>` : ''}
+            ${isFree ? `<button class="btn-secondary btn-sm" onclick="markAccountWaiting('${a.id}')">⏳ Esperando tokens</button>` : ''}
+            ${!isFree ? `<button class="btn-secondary btn-sm" onclick="freeAccount('${a.id}')">${isWaiting ? '✓ Ya tengo tokens' : 'Liberar'}</button>` : ''}
             <button class="btn-icon" onclick="editAccount('${a.id}')">✎</button>
             <button class="btn-icon danger" onclick="deleteAccount('${a.id}')">✕</button>
           </div>
@@ -1305,7 +1363,7 @@ function escHtml(str) {
 }
 
 function statusLabel(s) {
-  const labels = { en_progreso: 'en progreso', esperando_tokens: 'esperando', completada: 'completada', activa: 'activa', pausada: 'pausada' };
+  const labels = { en_progreso: 'en progreso', esperando_tokens: 'esperando', completada: 'completada', activa: 'activa', pausada: 'pausada', free: 'libre', busy: 'ocupada' };
   return labels[s] || s;
 }
 
@@ -1405,6 +1463,8 @@ window.saveAccount = saveAccount;
 window.editAccount = editAccount;
 window.deleteAccount = deleteAccount;
 window.freeAccount = freeAccount;
+window.markAccountWaiting = markAccountWaiting;
+window.saveAccountWait = saveAccountWait;
 window.newGlobalNote = newGlobalNote;
 window.createQuickGlobalNote = createQuickGlobalNote;
 window.selectGlobalNote = selectGlobalNote;

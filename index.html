@@ -72,6 +72,10 @@
         <div id="dash-tasks-waiting" class="card-list"></div>
       </section>
       <section class="dash-section">
+        <h2 class="section-title">Cuentas esperando tokens (sin tarea)</h2>
+        <div id="dash-accounts-waiting" class="card-list"></div>
+      </section>
+      <section class="dash-section">
         <h2 class="section-title">Acciones rápidas</h2>
         <div class="quick-actions">
           <button class="btn-primary" onclick="openModal('modal-new-quest')">+ Nueva Quest</button>
@@ -308,6 +312,8 @@
       <select id="task-quest-id" class="input-field"></select>
       <label class="field-label">Cuenta *</label>
       <select id="task-account-id" class="input-field"></select>
+      <label class="field-label">Título (opcional)</label>
+      <input type="text" id="task-title" class="input-field" placeholder="Un nombre corto para identificarla de un vistazo">
       <label class="field-label">Descripción *</label>
       <textarea id="task-desc" class="input-field textarea-sm" placeholder="¿Qué vas a hacer en esta sesión?"></textarea>
       <label class="field-label">Estado</label>
@@ -349,6 +355,27 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-new-account')">Cancelar</button>
       <button class="btn-primary" onclick="saveAccount()">Guardar Cuenta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mark account as waiting for tokens, without an associated task -->
+<div id="modal-account-wait" class="modal-overlay" onclick="closeModalOutside(event, 'modal-account-wait')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Marcar esperando tokens</h2>
+      <button class="modal-close" onclick="closeModal('modal-account-wait')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="account-wait-id">
+      <label class="field-label">Fecha y hora de reactivación (opcional)</label>
+      <input type="datetime-local" id="account-wait-reactivation" class="input-field">
+      <label class="field-label">Nota (opcional)</label>
+      <textarea id="account-wait-note" class="input-field textarea-sm" placeholder="¿Por qué se quedó sin tokens?"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-account-wait')">Cancelar</button>
+      <button class="btn-primary" onclick="saveAccountWait()">Marcar esperando tokens</button>
     </div>
   </div>
 </div>

@@ -59,6 +59,7 @@ Sin dependencias ni build step. Los 3 archivos (`index.html`, `app.js`, `style.c
   id: string,
   questId: string,          // FK → Quest
   accountId: string,        // FK → Cuenta
+  title?: string,            // opcional (ver §8/changelog sesión 9) — tareas creadas antes no lo tienen
   desc: string,              // requerido
   status: 'en_progreso' | 'esperando_tokens' | 'completada',
   reactivation: string,      // datetime-local: cuándo vuelve la cuenta
@@ -77,8 +78,10 @@ Sin dependencias ni build step. Los 3 archivos (`index.html`, `app.js`, `style.c
   platform: string,          // 'Claude' | 'ChatGPT' | 'Gemini' | custom
   email: string,              // requerido
   alias?: string,
-  status: 'free' | 'busy',
-  activeTaskId: string | null,
+  status: 'free' | 'busy' | 'esperando_tokens',   // tercer valor: ver §8/changelog sesión 10
+  activeTaskId: string | null,   // siempre null cuando status es 'free' o 'esperando_tokens'
+  waitReactivation?: string,     // datetime-local opcional, solo relevante si status === 'esperando_tokens'
+  waitNote?: string,             // nota corta opcional, solo relevante si status === 'esperando_tokens'
   createdAt: string,
   updatedAt?: string
 }
@@ -202,6 +205,35 @@ Dos velocidades, no una sola:
 Si en algún momento las entradas del changelog empiezan a contradecir las secciones 3-8, es la señal de que toca una regeneración completa.
 
 ## Historial de cambios
+
+### 2026-07-04 (sesión 10)
+- Qué cambió: pedido del usuario — "se acaban los tokens y no tengo tareas pendientes, quiero poder poner una cuenta en espera desde Cuentas sin necesidad de una tarea". Se agregó un tercer valor de `status` para Cuenta: `'esperando_tokens'`, independiente de cualquier tarea (a diferencia del estado "esperando tokens" que ya existía a nivel de tarea). Cambios:
+  - `Cuenta` gana 2 campos opcionales: `waitReactivation` (datetime, opcional) y `waitNote` (texto corto, opcional) — ambos solo relevantes cuando `status === 'esperando_tokens'`.
+  - Se reusó deliberadamente el mismo string `'esperando_tokens'` que ya usan las tareas (en vez de inventar un nombre nuevo), para heredar gratis el badge/color ya existente (`.badge-esperando_tokens`, ámbar) y el label ("esperando") de `statusLabel()`. `statusLabel()` se extendió con `free: 'libre', busy: 'ocupada'` para poder usarlo también en cuentas.
+  - `index.html`: nuevo modal `modal-account-wait` (fecha de reactivación opcional + nota opcional) y nueva sección en el Dashboard "Cuentas esperando tokens (sin tarea)".
+  - `markAccountWaiting(id)` (nueva, solo aplica a cuentas `free`) y `saveAccountWait()` (nueva): guardan el estado + los 2 campos opcionales.
+  - `freeAccount(id)`: ahora también limpia `waitReactivation`/`waitNote` al volver a `free` — la misma función sirve tanto para "Liberar" (cuenta busy con tarea real, comportamiento sin cambios) como para "✓ Ya tengo tokens" (cuenta esperando sin tarea), el label del botón cambia según el estado actual pero la función es la misma.
+  - `renderAccounts()`: reemplaza el binario `isFree` por manejo de los 3 estados — badge/borde según `a.status`, bloque de info de espera (nota + fecha) cuando corresponde, y el botón "⏳ Esperando tokens" solo aparece en cuentas libres.
+  - Dos puntos que dependían de `status === 'busy'` de forma exacta se extendieron a `status !== 'free'`, para que una cuenta esperando tokens sin tarea se trate igual de "no disponible" que una ocupada: el selector de cuenta en el modal de tarea (`populateTaskModal`, ahora agrupa ambos casos bajo un optgroup renombrado "No disponibles", con label distinto según cuál sea) y la validación de `saveTask()` que bloquea asignar una cuenta no disponible.
+  - `resetForms()`: se sumaron los 3 inputs nuevos del modal de espera.
+- Por qué no rompe con datos existentes: toda cuenta ya guardada tiene `status: 'free'` o `'busy'` — ninguna se migra ni cambia sola. `waitReactivation`/`waitNote` son puramente aditivos y solo se leen cuando `status === 'esperando_tokens'`, que ninguna cuenta vieja tiene.
+- Cómo se verificó: dataset con una cuenta libre, una cuenta busy vieja con una tarea real asociada (sin tocar en todo el test), y una segunda cuenta libre. Se recorrió: vista de Cuentas antes y después de marcar una cuenta en espera (badge, borde, nota, botón), el Dashboard (la sección nueva muestra la cuenta en espera, la sección de tareas esperando y la de cuentas ocupadas no se ven afectadas), el selector de cuentas al crear una tarea (la cuenta en espera aparece deshabilitada bajo "No disponibles"), el bloqueo de `saveTask()` si se fuerza igual la asignación, "✓ Ya tengo tokens" devolviendo la cuenta a libre y limpiando los campos, que la cuenta busy real quedó intacta durante todo el proceso, y `resetForms()`. 25 checks, todos correctos.
+- Hallazgo de §8 resuelto: ninguno (feature nueva pedida por el usuario).
+- Qué quedó pendiente: nada identificado como pendiente de esta feature en sí. Sigue abierto todo lo ya anotado en sesiones anteriores (§8.7, autosave de tags en notas de quest, notas globales con el mismo riesgo de sesión 8).
+
+### 2026-07-04 (sesión 9)
+- Qué cambió: las tareas ahora tienen un campo `title` **opcional** (pedido por el usuario, con el requisito explícito de no romper las tareas ya guardadas sin ese campo). Cambios:
+  - `index.html`: nuevo input "Título (opcional)" en el modal de tarea, entre "Cuenta" y "Descripción".
+  - `saveTask()`: lee `task-title`, lo guarda en `create` y en `edit`; **no** se agregó a la validación de campos obligatorios (sigue bloqueando solo por quest/cuenta/descripción, igual que antes).
+  - `editTask()`: precarga el input con `t.title || ''`, así que una tarea vieja sin `title` simplemente abre el campo vacío en vez de mostrar `undefined`.
+  - `resetForms()`: se sumó `task-title` a la lista de campos que limpia al abrir el modal.
+  - Las 5 vistas que muestran una tarea (dashboard "cuentas ocupadas", dashboard "esperando tokens", tab Tareas del detalle de quest, vista general de Tareas, vista de Cuentas) ahora muestran el título si existe, siguiendo el mismo patrón `Tarea #N — {título}` que ya se usaba en el dashboard para el nombre de quest — cuando `title` no existe, el string queda exactamente igual que antes (ningún cambio visual para datos viejos).
+  - Buscador de la vista Tareas: ahora también matchea contra `title`, con `(t.title || '')` para no romper con tareas que no lo tienen.
+  - No hizo falta tocar `exportData()`/`importData()`: no validan un esquema fijo, así que el campo nuevo viaja solo.
+- Por qué no rompe con datos existentes: `title` es puramente aditivo — ninguna tarea existente se reescribe ni se migra. Cada punto de lectura usa `t.title || ''` (o el operador ternario `t.title ? ... : ''` en los templates) en vez de asumir que el campo existe, así que una tarea sin `title` en `localStorage` nunca produce `undefined` en pantalla ni rompe un `.toLowerCase()`.
+- Cómo se verificó: se armó un dataset de prueba con una tarea "vieja" (sin `title`, simulando data pre-existente) y una tarea "nueva" (con `title`) en la misma quest y misma DB, y se recorrieron las 5 vistas, el buscador, `editTask()` en ambas tareas, guardar una edición de título, crear una tarea nueva sin completar el título, y `resetForms()`. 17 checks, todos correctos — ninguna vista muestra `undefined`, la tarea vieja se sigue viendo y buscando igual que antes, y la nueva expone el título donde corresponde.
+- Hallazgo de §8 resuelto: ninguno (feature nueva pedida por el usuario, no un bug del análisis original).
+- Qué quedó pendiente: el título no es obligatorio ni siquiera para tareas nuevas (decisión explícita, confirmada con el usuario antes de implementar). Si en el futuro se quiere hacer obligatorio solo para tareas nuevas, el cambio es puntual en la validación de `saveTask()`.
 
 ### 2026-07-04 (sesión 8)
 - Contexto: el usuario aplicó el fix de la sesión 7 y confirmó que el problema seguía ocurriendo con este repro puntual: entrar a una quest, escribir una nota, salir de la quest, volver a la misma quest, y la nota aparecía sin guardar. Esto significaba que había una segunda causa distinta, no cubierta por el fix anterior.

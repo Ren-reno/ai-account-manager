@@ -552,6 +552,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
 }
 .account-card.free  { border-left: 3px solid var(--success); }
 .account-card.busy  { border-left: 3px solid var(--danger); }
+.account-card.esperando_tokens  { border-left: 3px solid var(--warn); }
 
 .account-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .account-card-header > div { min-width: 0; }
