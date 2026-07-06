@@ -605,6 +605,102 @@ function saveAccountWait() {
   if (currentView === 'dashboard') renderDashboard();
 }
 
+// ===== AUTO-RELEASE: liberar cuentas/tareas cuando pasa su hora de reactivación =====
+// Antes había que mirar el reloj y liberar la cuenta a mano (o reeditar la tarea)
+// apenas se cumplía el plazo. Esto corre sin intervención: al cargar la app (por si
+// algo venció mientras estaba cerrada), cada cierto intervalo mientras sigue abierta,
+// y de nuevo apenas la pestaña recupera foco/visibilidad — los timers de una pestaña
+// en segundo plano o con el equipo dormido se frenan o se limitan mucho, así que sin
+// este último chequeo la detección podría demorar varios minutos después de volver.
+const autoReleaseCheckMs = 30000;
+
+function checkAutoReleases() {
+  const nowDate = new Date();
+  const tasks = DB.tasks;
+  const accounts = DB.accounts;
+  let tasksChanged = false;
+  let accountsChanged = false;
+  const notifications = [];
+
+  // Caso 1: tarea "esperando tokens" cuya hora de reactivación ya pasó. La cuenta
+  // asociada ya figura 'busy' desde que se creó la tarea (saveTask() la deja así sin
+  // importar si la tarea está en_progreso o esperando_tokens — decisión de diseño en
+  // §7 de CONTEXT.md), así que no hay que tocar la cuenta: sólo la tarea vuelve a
+  // en_progreso, tal como se pidió (no se marca completada — eso sigue siendo una
+  // decisión manual del usuario, igual que hoy).
+  tasks.forEach(t => {
+    if (t.status === 'esperando_tokens' && t.reactivation && new Date(t.reactivation) <= nowDate) {
+      t.status = 'en_progreso';
+      t.reactivation = ''; // ya cumplió su función; evita un badge "⟳ [hora ya pasada]" en una tarea que ya está en progreso
+      t.updatedAt = now();
+      tasksChanged = true;
+      const acc = accounts.find(a => a.id === t.accountId);
+      const accLabel = acc ? `[${acc.platform}] ${acc.alias || acc.email}` : 'Cuenta';
+      const taskLabel = `Tarea #${t.taskNumber}` + (t.title ? ` "${t.title.slice(0, 30)}"` : '');
+      notifications.push(`⟳ ${accLabel} — ${taskLabel} en progreso otra vez ✓`);
+    }
+  });
+
+  // Caso 2: cuenta marcada "esperando tokens" sin tarea asociada, cuya hora ya
+  // pasó. Mismo resultado que apretar "✓ Ya tengo tokens" a mano (freeAccount()
+  // completaría una tarea si hubiera una asociada, pero acá activeTaskId siempre es
+  // null — markAccountWaiting() sólo aplica a cuentas ya libres).
+  accounts.forEach(a => {
+    if (a.status === 'esperando_tokens' && a.waitReactivation && new Date(a.waitReactivation) <= nowDate) {
+      a.status = 'free';
+      a.waitReactivation = '';
+      a.waitNote = '';
+      a.updatedAt = now();
+      accountsChanged = true;
+      notifications.push(`⟳ [${a.platform}] ${a.alias || a.email} — cuenta libre otra vez ✓`);
+    }
+  });
+
+  if (tasksChanged) DB.saveTasks(tasks);
+  if (accountsChanged) DB.saveAccounts(accounts);
+  if (!notifications.length) return;
+
+  // El toast (#toast) es un único elemento — dos showToast() seguidos pisan el
+  // mensaje anterior en vez de mostrar ambos. Como esta misma pasada puede liberar
+  // más de una cuenta/tarea (típico al reabrir la app después de varias horas), se
+  // encolan en vez de perderse todas menos la última.
+  const maxIndividualReleaseToasts = 3;
+  notifications.slice(0, maxIndividualReleaseToasts).forEach(msg => queueReleaseToast(msg));
+  if (notifications.length > maxIndividualReleaseToasts) {
+    queueReleaseToast(`⟳ +${notifications.length - maxIndividualReleaseToasts} cuenta(s)/tarea(s) más liberadas ✓`);
+  }
+
+  // Sólo refresca lo que puede haber cambiado, sin pasar por renderQuestDetail():
+  // esa función también llama a renderQuestNotes(), que recarga el editor de notas
+  // desde DB y pisaría una edición sin guardar todavía (mismo riesgo que el hallazgo
+  // de la sesión 8). Como esta función nunca toca notas, alcanza con refrescar
+  // tareas/stats de la quest actual directamente.
+  if (currentView === 'dashboard') renderDashboard();
+  else if (currentView === 'accounts') renderAccounts();
+  else if (currentView === 'tasks') renderTasks();
+  else if (currentView === 'quest-detail' && currentQuestId) {
+    renderQuestTasks(currentQuestId);
+    renderQuestStats(currentQuestId);
+  }
+}
+
+let releaseToastQueue = [];
+let releaseToastBusy = false;
+const releaseToastVisibleMs = 3200;
+
+function queueReleaseToast(msg) {
+  releaseToastQueue.push(msg);
+  if (!releaseToastBusy) drainReleaseToastQueue();
+}
+
+function drainReleaseToastQueue() {
+  const msg = releaseToastQueue.shift();
+  if (msg === undefined) { releaseToastBusy = false; return; }
+  releaseToastBusy = true;
+  showToast(msg, 'success');
+  setTimeout(drainReleaseToastQueue, releaseToastVisibleMs);
+}
+
 // ===== NOTES CRUD =====
 // --- Global Notes ---
 let currentGlobalNoteId = null;
@@ -1441,6 +1537,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial render
   showView('dashboard');
+
+  // Auto-release: catch-up inmediato (por si algo venció con la app cerrada) y
+  // después cada autoReleaseCheckMs mientras siga abierta. visibilitychange/focus
+  // adelantan el chequeo apenas se vuelve a la pestaña, para no depender del
+  // intervalo si el navegador lo frenó en segundo plano (ver comentario junto a
+  // autoReleaseCheckMs).
+  checkAutoReleases();
+  setInterval(checkAutoReleases, autoReleaseCheckMs);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkAutoReleases();
+  });
+  window.addEventListener('focus', checkAutoReleases);
 });
 
 // Expose for inline onclick
