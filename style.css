@@ -38,6 +38,7 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --font-body: system-ui, -apple-system, sans-serif;
   --sidebar-width: 210px;
+  --note-max-width: 720px;
 }
 
 html, body {
@@ -469,6 +470,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   outline: none;
   font-family: var(--font-mono);
   width: 100%;
+  max-width: var(--note-max-width);
   transition: border-color .15s;
 }
 .note-title-input:focus { border-bottom-color: var(--accent); }
@@ -484,6 +486,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   font-family: var(--font-body);
   line-height: 1.7;
   min-height: 200px;
+  max-width: var(--note-max-width);
 }
 
 .note-meta {
@@ -494,6 +497,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   flex-wrap: wrap;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+  max-width: var(--note-max-width);
 }
 
 .save-status {

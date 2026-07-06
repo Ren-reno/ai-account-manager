@@ -206,6 +206,12 @@ Si en algún momento las entradas del changelog empiezan a contradecir las secci
 
 ## Historial de cambios
 
+### 2026-07-05 (sesión 11)
+- Qué cambió: ajuste visual/UX pedido por el usuario — las notas (de quest y globales) se leían muy anchas en pantallas grandes: `.note-title-input`, `.note-body-input` y `.note-meta` heredaban el 100% del ancho de `.notes-editor`, que a su vez ocupa toda la columna `1fr` del grid `.notes-layout` sin ningún tope. Se agregó la variable `--note-max-width: 720px` en `:root` (mismo patrón que `--sidebar-width`) y se aplicó como `max-width` a esas 3 clases en `style.css`. El valor busca una medida de lectura cómoda para el cuerpo (`system-ui` 14px) sin recortar de forma agresiva contenido técnico (rutas, nombres de función, URLs) frecuente en estas notas.
+- Por qué así (decisiones de diseño): no se tocó el ancho de la card `.notes-editor` en sí — sigue ocupando toda la columna con el mismo fondo `--surface`, así que no aparece un color de fondo distinto al costado del texto. El bloque de texto quedó alineado a la izquierda (sin `margin:auto` para centrarlo) para no tener que re-alinear también `.note-delete-btn` (que sigue con `align-self:flex-start`, sin cambios): centrar solo el texto y dejar el botón de eliminar pegado al borde izquierdo del panel se hubiera visto desalineado. Mantiene el diff acotado a 4 líneas de CSS. Sin impacto esperado en mobile: la media query a 768px ya cambia `.notes-layout` a una sola columna angosta, muy por debajo del nuevo máximo.
+- Hallazgo de §8 resuelto: ninguno (mejora de UX pedida directamente por el usuario, no un bug del análisis original — mismo criterio que sesión 6).
+- Qué quedó pendiente: nada identificado como pendiente de este cambio en sí. Sigue abierto lo de siempre: §8.7 (evento `DOMSubtreeModified` obsoleto), autosave por cambio de tags en notas de quest (sesión 7), mismo riesgo de autosave en notas globales (sesión 8), y los pendientes de tooling/portafolio (§8.8-10).
+
 ### 2026-07-04 (sesión 10)
 - Qué cambió: pedido del usuario — "se acaban los tokens y no tengo tareas pendientes, quiero poder poner una cuenta en espera desde Cuentas sin necesidad de una tarea". Se agregó un tercer valor de `status` para Cuenta: `'esperando_tokens'`, independiente de cualquier tarea (a diferencia del estado "esperando tokens" que ya existía a nivel de tarea). Cambios:
   - `Cuenta` gana 2 campos opcionales: `waitReactivation` (datetime, opcional) y `waitNote` (texto corto, opcional) — ambos solo relevantes cuando `status === 'esperando_tokens'`.
