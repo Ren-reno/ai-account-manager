@@ -282,7 +282,11 @@ body { display: flex; }
 .badge-done, .badge-completada      { background: rgba(62,207,142,.12); color: var(--success); }
 .badge-paused, .badge-pausada       { background: rgba(107,122,153,.15); color: var(--muted); }
 .badge-free  { background: rgba(62,207,142,.12); color: var(--success); }
-.badge-busy  { background: rgba(224,90,106,.12); color: var(--danger); }
+/* C1 (plan de cambios): 'ocupada' compartía color con acciones destructivas (--danger),
+   por eso se leía como alerta en vez de estado normal. Pasa a un tono neutro/informativo
+   -- el mismo que ya usa 'pausada' (rgba 107,122,153 = --muted) -- dejando --danger
+   exclusivo para eliminar/límites reales. La lógica de bloqueo de reuso no cambia. */
+.badge-busy  { background: rgba(107,122,153,.15); color: var(--muted); }
 
 .platform-tag {
   font-size: 11px;
@@ -555,7 +559,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   transition: border-color .15s;
 }
 .account-card.free  { border-left: 3px solid var(--success); }
-.account-card.busy  { border-left: 3px solid var(--danger); }
+.account-card.busy  { border-left: 3px solid var(--muted); }
 .account-card.esperando_tokens  { border-left: 3px solid var(--warn); }
 
 .account-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }

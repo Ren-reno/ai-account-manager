@@ -371,8 +371,13 @@ function saveTask() {
 
   const editId = document.getElementById('task-edit-id').value;
   const status = document.getElementById('task-status').value;
-  const reactivation = document.getElementById('task-reactivation').value;
-  const notesClosure = document.getElementById('task-notes-closure').value.trim();
+  // Q3 (plan de cambios): estos dos campos comparten un solo wrap que sólo se ve con
+  // toggleReactivationField() cuando status==='esperando_tokens', pero el input seguía
+  // guardando su valor viejo aunque quedara oculto -- por eso una tarea marcada
+  // completada después de haber esperado tokens seguía mostrando la fecha/nota vieja
+  // en las tarjetas. Sólo se persisten mientras el estado sea esperando_tokens.
+  const reactivation = status === 'esperando_tokens' ? document.getElementById('task-reactivation').value : '';
+  const notesClosure = status === 'esperando_tokens' ? document.getElementById('task-notes-closure').value.trim() : '';
   let tasks = DB.tasks;
   let accounts = DB.accounts;
 
@@ -987,7 +992,9 @@ function renderDashboard() {
     ? busyAccounts.map(a => {
         const task = a.activeTaskId ? tasks.find(t => t.id === a.activeTaskId) : null;
         const quest = task ? quests.find(q => q.id === task.questId) : null;
-        return `<div class="card">
+        // D1 (plan de cambios): antes esta tarjeta no navegaba a ningún lado al clickear.
+        const goTo = task ? `showView('quest-detail','${task.questId}')` : `showView('accounts')`;
+        return `<div class="card" style="cursor:pointer" onclick="${goTo}">
           <div class="card-header">
             <div>
               <div class="card-title">${escHtml(a.alias || a.email)}</div>
@@ -996,7 +1003,7 @@ function renderDashboard() {
             <span class="badge badge-busy">ocupada</span>
           </div>
           ${task ? `<div class="card-desc card-desc-clamp">${escHtml(quest?.name || '')}${task.title ? ' — ' + escHtml(task.title) : ''} — ${escHtml(task.desc)}</div>` : ''}
-          ${task?.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
+          ${task?.status === 'esperando_tokens' && task.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
         </div>`;
       }).join('')
     : '<div class="list-empty">Sin cuentas ocupadas 🟢</div>';
@@ -1008,7 +1015,7 @@ function renderDashboard() {
     ? activeQ.map(q => {
         const qTasks = tasks.filter(t => t.questId === q.id);
         const done = qTasks.filter(t => t.status === 'completada').length;
-        return `<div class="card" onclick="showView('quest-detail','${q.id}')">
+        return `<div class="card" style="cursor:pointer" onclick="showView('quest-detail','${q.id}')">
           <div class="card-header">
             <div class="card-title">${escHtml(q.name)}</div>
             <span class="badge badge-active">activa</span>
@@ -1025,7 +1032,7 @@ function renderDashboard() {
     ? waiting.map(t => {
         const quest = quests.find(q => q.id === t.questId);
         const acc = accounts.find(a => a.id === t.accountId);
-        return `<div class="card">
+        return `<div class="card" style="cursor:pointer" onclick="showView('quest-detail','${t.questId}')">
           <div class="card-header">
             <div class="card-title">Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''} — ${escHtml(quest?.name || '')}</div>
             <span class="badge badge-waiting">esperando</span>
@@ -1040,7 +1047,7 @@ function renderDashboard() {
   const waitingAccounts = accounts.filter(a => a.status === 'esperando_tokens');
   const waEl = document.getElementById('dash-accounts-waiting');
   waEl.innerHTML = waitingAccounts.length
-    ? waitingAccounts.map(a => `<div class="card">
+    ? waitingAccounts.map(a => `<div class="card" style="cursor:pointer" onclick="showView('accounts')">
           <div class="card-header">
             <div>
               <div class="card-title">${escHtml(a.alias || a.email)}</div>
@@ -1155,9 +1162,9 @@ function renderQuestTasks(questId) {
           </div>
           <div class="card-desc">${escHtml(t.desc)}</div>
           <div class="card-footer">
-            ${t.reactivation ? `<span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span>` : ''}
+            ${t.status === 'esperando_tokens' && t.reactivation ? `<span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span>` : ''}
             ${dur ? `<span class="badge" style="background:var(--surface2);color:var(--muted)">⏱ ${dur}</span>` : ''}
-            ${t.notesClosure ? `<span style="font-size:11px;color:var(--muted)">📝 ${escHtml(t.notesClosure.slice(0,60))}${t.notesClosure.length>60?'...':''}</span>` : ''}
+            ${t.status === 'esperando_tokens' && t.notesClosure ? `<span style="font-size:11px;color:var(--muted)">📝 ${escHtml(t.notesClosure.slice(0,60))}${t.notesClosure.length>60?'...':''}</span>` : ''}
           </div>
         </div>`;
       }).join('')
@@ -1260,7 +1267,7 @@ function renderTasks() {
           </div>
           <div class="card-desc">${escHtml(t.desc)}</div>
           <div class="card-footer">
-            ${t.reactivation ? `<span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span>` : ''}
+            ${t.status === 'esperando_tokens' && t.reactivation ? `<span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span>` : ''}
             ${dur ? `<span class="badge" style="background:var(--surface2);color:var(--muted)">⏱ ${dur}</span>` : ''}
           </div>
         </div>`;
@@ -1294,7 +1301,7 @@ function renderAccounts() {
           <div class="account-task-info">
             <div><strong>${escHtml(quest?.name || '')}</strong> — Tarea #${task.taskNumber}${task.title ? ' — ' + escHtml(task.title) : ''}</div>
             <div style="margin-top:4px">${escHtml(task.desc.slice(0,80))}${task.desc.length>80?'...':''}</div>
-            ${task.reactivation ? `<div style="margin-top:6px"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
+            ${task.reactivation && task.status === 'esperando_tokens' ? `<div style="margin-top:6px"><span class="reactivation-badge">⟳ ${fmtDatetime(task.reactivation)}</span></div>` : ''}
           </div>` : ''}
           ${isWaiting && (a.waitNote || a.waitReactivation) ? `
           <div class="account-task-info">
