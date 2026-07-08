@@ -68,6 +68,7 @@ function getPlatforms() {
 let currentView = 'dashboard';
 let currentQuestId = null;
 let currentQuestStatusFilter = 'activa';
+let currentQuestTaskFilter = 'pendientes'; // 'pendientes' (en_progreso + esperando_tokens) | '' (todas, incluye completadas)
 
 function showView(name, questId) {
   // Si había una edición de nota de quest pendiente de autoguardar (el debounce
@@ -91,7 +92,10 @@ function showView(name, questId) {
   currentView = name;
 
   if (name === 'quest-detail' && questId) {
-    if (currentQuestId !== questId) currentQuestNoteId = null;
+    if (currentQuestId !== questId) {
+      currentQuestNoteId = null;
+      currentQuestTaskFilter = 'pendientes'; // Q2: no arrastrar el filtro de una quest a otra
+    }
     currentQuestId = questId;
     renderQuestDetail(questId);
     return;
@@ -1138,19 +1142,51 @@ function renderQuestDetail(questId) {
   renderQuestStats(questId);
 }
 
+// Q2 (plan de cambios, Fase 2): mismo patrón que renderQuestStatusFilter() en la lista
+// principal de Quests, adaptado a 2 opciones -- acá no hace falta un filtro de 4 estados,
+// el pedido es puntual: ocultar completadas por defecto, con un escape hatch a "Todas".
+function renderQuestTaskFilter() {
+  const bar = document.getElementById('qd-task-filter');
+  if (!bar) return;
+  const options = [
+    { value: 'pendientes', label: 'Pendientes' },
+    { value: '', label: 'Todas' }
+  ];
+  bar.innerHTML = options.map(o =>
+    `<span class="tag ${currentQuestTaskFilter === o.value ? 'active' : ''}" data-filter="${o.value}">${o.label}</span>`
+  ).join('');
+  bar.querySelectorAll('.tag').forEach(el => {
+    el.onclick = () => {
+      currentQuestTaskFilter = el.dataset.filter;
+      renderQuestTasks(currentQuestId);
+    };
+  });
+}
+
 function renderQuestTasks(questId) {
-  const tasks = DB.tasks.filter(t => t.questId === questId);
+  const allTasks = DB.tasks.filter(t => t.questId === questId);
   const accounts = DB.accounts;
+
+  renderQuestTaskFilter();
+  const tasks = currentQuestTaskFilter === 'pendientes'
+    ? allTasks.filter(t => t.status !== 'completada')
+    : allTasks;
+
   const el = document.getElementById('qd-tasks-list');
   el.innerHTML = tasks.length
     ? tasks.map(t => {
         const acc = accounts.find(a => a.id === t.accountId);
         const dur = t.completedAt ? calcDuration(t.createdAt, t.completedAt) : null;
+        // T2 (plan de cambios, Fase 2): si la tarea tiene título, ese título pasa a ser
+        // el dato principal (card-title) y "Tarea #N" baja a card-sub como dato
+        // secundario, más chico. Sin título, se mantiene el comportamiento de siempre.
+        const titleMain = t.title ? escHtml(t.title) : `Tarea #${t.taskNumber}`;
+        const numberSub = t.title ? `Tarea #${t.taskNumber} · ` : '';
         return `<div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''}</div>
-              <div class="card-sub">${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
+              <div class="card-title">${titleMain}</div>
+              <div class="card-sub">${numberSub}${acc ? `[${escHtml(acc.platform)}] ${escHtml(acc.alias || acc.email)}` : ''} · ${fmtDate(t.createdAt)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <span class="badge badge-${t.status}">${statusLabel(t.status)}</span>
@@ -1168,7 +1204,7 @@ function renderQuestTasks(questId) {
           </div>
         </div>`;
       }).join('')
-    : '<div class="list-empty">Sin tareas en esta quest</div>';
+    : `<div class="list-empty">${allTasks.length ? 'No hay tareas pendientes en esta quest (probá el filtro "Todas").' : 'Sin tareas en esta quest'}</div>`;
 }
 
 function renderQuestStats(questId) {
