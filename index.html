@@ -98,7 +98,7 @@
       </div>
     </header>
     <div class="filter-tags" id="quest-status-filter"></div>
-    <div class="filter-tags" id="quest-tag-filters"></div>
+    <div class="filter-tags" id="quest-category-filter"></div>
     <div id="quests-list" class="card-list"></div>
   </div>
 
@@ -249,6 +249,15 @@
         </div>
       </section>
       <section class="settings-section">
+        <h2>Categorías</h2>
+        <p class="settings-desc">Categorías para clasificar tus quests (reemplaza al viejo sistema de etiquetas).</p>
+        <div id="categories-list" class="tag-list-edit"></div>
+        <div class="input-row">
+          <input type="text" id="new-category-input" class="input-field" placeholder="Ej: Trading, Scraping, Backend...">
+          <button class="btn-primary btn-sm" onclick="addCategory()">Agregar</button>
+        </div>
+      </section>
+      <section class="settings-section">
         <h2>Datos</h2>
         <p class="settings-desc">Exporta o importa todos tus datos en formato JSON.</p>
         <div class="btn-row">
@@ -289,9 +298,8 @@
         <option value="pausada">Pausada</option>
         <option value="completada">Completada</option>
       </select>
-      <label class="field-label">Etiquetas</label>
-      <input type="text" id="quest-tags-input" class="tags-input" placeholder="#etiqueta (Enter para agregar)">
-      <div id="quest-tags-display" class="tags-display"></div>
+      <label class="field-label">Categoría</label>
+      <select id="quest-category" class="input-field"></select>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-new-quest')">Cancelar</button>
@@ -352,6 +360,8 @@
       <input type="email" id="account-email" class="input-field" placeholder="mi@correo.com">
       <label class="field-label">Alias (opcional)</label>
       <input type="text" id="account-alias" class="input-field" placeholder="Ej: Claude personal, GPT trabajo">
+      <label class="field-label">Color</label>
+      <input type="color" id="account-color" class="input-color" value="#7b5ea7">
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-new-account')">Cancelar</button>

@@ -13,6 +13,7 @@ const DB = {
     globalNotes: 'ait_global_notes',
     questNotes: 'ait_quest_notes',
     platforms: 'ait_platforms',
+    categories: 'ait_categories',
   },
   load(key) {
     try { return JSON.parse(localStorage.getItem(key)) || []; }
@@ -27,12 +28,14 @@ const DB = {
   get globalNotes() { return this.load(this.KEYS.globalNotes); },
   get questNotes()  { return this.load(this.KEYS.questNotes); },
   get platforms()   { return this.load(this.KEYS.platforms); },
+  get categories()  { return this.load(this.KEYS.categories); },
   saveQuests(d)      { this.save(this.KEYS.quests, d); },
   saveTasks(d)       { this.save(this.KEYS.tasks, d); },
   saveAccounts(d)    { this.save(this.KEYS.accounts, d); },
   saveGlobalNotes(d) { this.save(this.KEYS.globalNotes, d); },
   saveQuestNotes(d)  { this.save(this.KEYS.questNotes, d); },
   savePlatforms(d)   { this.save(this.KEYS.platforms, d); },
+  saveCategories(d)  { this.save(this.KEYS.categories, d); },
 };
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -68,6 +71,7 @@ function getPlatforms() {
 let currentView = 'dashboard';
 let currentQuestId = null;
 let currentQuestStatusFilter = 'activa';
+let currentQuestCategoryFilter = ''; // '' = Todas; si no, id de categoría
 let currentQuestTaskFilter = 'pendientes'; // 'pendientes' (en_progreso + esperando_tokens) | '' (todas, incluye completadas)
 
 function showView(name, questId) {
@@ -164,7 +168,7 @@ function closeModalOutside(e, id) {
   if (e.target.id === id) closeModal(id);
 }
 function resetForms() {
-  ['quest-edit-id','quest-name','quest-desc','quest-status','quest-tags-input',
+  ['quest-edit-id','quest-name','quest-desc','quest-status','quest-category',
    'task-edit-id','task-quest-id','task-account-id','task-title','task-desc','task-status','task-reactivation','task-notes-closure',
    'account-edit-id','account-email','account-alias','account-wait-id','account-wait-reactivation','account-wait-note','quick-note-title','new-platform-input'
   ].forEach(id => {
@@ -173,11 +177,17 @@ function resetForms() {
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
   });
-  const qTags = document.getElementById('quest-tags-display');
-  if (qTags) { qTags.innerHTML = ''; qTags._tags = []; }
   document.getElementById('modal-quest-title').textContent = 'Nueva Quest';
   document.getElementById('modal-task-title').textContent = 'Nueva Tarea';
   document.getElementById('modal-account-title').textContent = 'Nueva Cuenta';
+  // Q5 (plan de cambios, Fase 3): un <input type="color"> no acepta value='' -- el
+  // navegador lo interpretaría como negro (#000000), no como "sin elegir". Por eso no
+  // entra en el array genérico de arriba (que sí sirve para SELECT/texto) y se resetea
+  // acá aparte, a mano, al mismo violeta neutro que trae por defecto en el HTML. Sin
+  // este reset, cancelar la edición de una cuenta de color rojo y después abrir
+  // "+ Nueva Cuenta" arrancaría con el rojo pisado de la cuenta anterior.
+  const colorInput = document.getElementById('account-color');
+  if (colorInput) colorInput.value = '#7b5ea7';
   const wrap = document.getElementById('task-reactivation-wrap');
   if (wrap) wrap.style.display = 'none';
 }
@@ -239,12 +249,20 @@ function getTags(displayId) {
 }
 
 // ===== QUEST CRUD =====
+function populateQuestCategorySelect() {
+  const sel = document.getElementById('quest-category');
+  if (!sel) return;
+  const categories = DB.categories;
+  sel.innerHTML = '<option value="">Sin categoría</option>' +
+    categories.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+}
+
 function saveQuest() {
   const name = document.getElementById('quest-name').value.trim();
   if (!name) { showToast('El nombre es obligatorio', 'error'); return; }
   const editId = document.getElementById('quest-edit-id').value;
   const quests = DB.quests;
-  const tags = getTags('quest-tags-display');
+  const categoryId = document.getElementById('quest-category').value || null;
 
   if (editId) {
     const idx = quests.findIndex(q => q.id === editId);
@@ -253,7 +271,7 @@ function saveQuest() {
         name,
         desc: document.getElementById('quest-desc').value.trim(),
         status: document.getElementById('quest-status').value,
-        tags,
+        categoryId,
         updatedAt: now(),
       };
     }
@@ -263,7 +281,7 @@ function saveQuest() {
       id: uid(), name,
       desc: document.getElementById('quest-desc').value.trim(),
       status: document.getElementById('quest-status').value,
-      tags,
+      categoryId,
       createdAt: now(),
     });
     showToast('Quest creada ✓', 'success');
@@ -282,7 +300,8 @@ function editQuest(id) {
   document.getElementById('quest-desc').value = q.desc || '';
   document.getElementById('quest-status').value = q.status || 'activa';
   document.getElementById('modal-quest-title').textContent = 'Editar Quest';
-  setTags('quest-tags-display', q.tags || []);
+  populateQuestCategorySelect();
+  document.getElementById('quest-category').value = q.categoryId || '';
   openModal('modal-new-quest');
 }
 
@@ -500,6 +519,7 @@ function saveAccount() {
   const platform = document.getElementById('account-platform').value;
   const email = document.getElementById('account-email').value.trim();
   const alias = document.getElementById('account-alias').value.trim();
+  const color = document.getElementById('account-color').value;
   if (!email) { showToast('El email es obligatorio', 'error'); return; }
 
   const editId = document.getElementById('account-edit-id').value;
@@ -508,11 +528,11 @@ function saveAccount() {
   if (editId) {
     const idx = accounts.findIndex(a => a.id === editId);
     if (idx !== -1) {
-      accounts[idx] = { ...accounts[idx], platform, email, alias, updatedAt: now() };
+      accounts[idx] = { ...accounts[idx], platform, email, alias, color, updatedAt: now() };
     }
     showToast('Cuenta actualizada ✓', 'success');
   } else {
-    accounts.push({ id: uid(), platform, email, alias, status: 'free', activeTaskId: null, createdAt: now() });
+    accounts.push({ id: uid(), platform, email, alias, color, status: 'free', activeTaskId: null, createdAt: now() });
     showToast('Cuenta agregada ✓', 'success');
   }
   DB.saveAccounts(accounts);
@@ -529,6 +549,7 @@ function editAccount(id) {
   document.getElementById('account-platform').value = a.platform;
   document.getElementById('account-email').value = a.email;
   document.getElementById('account-alias').value = a.alias || '';
+  document.getElementById('account-color').value = a.color || '#7b5ea7';
   document.getElementById('modal-account-title').textContent = 'Editar Cuenta';
   openModal('modal-new-account');
 }
@@ -1086,27 +1107,50 @@ function renderQuestStatusFilter() {
   });
 }
 
+// Q4 (plan de cambios, Fase 3): reemplaza a getActiveTagFilters('quest-tag-filters') +
+// renderTagFilterBar(). Antes era multi-select (una quest podía tener N tags), ahora una
+// quest tiene a lo sumo UNA categoría, así que el filtro pasa a ser single-select como
+// renderQuestStatusFilter(), no multi como era el de tags. Si no hay categorías creadas
+// todavía, no tiene sentido mostrar una barra con el único pill "Todas" sin nada para
+// comparar -- se deja vacía, mismo comportamiento que tenía la barra de tags con allTags=[].
+function renderQuestCategoryFilter() {
+  const bar = document.getElementById('quest-category-filter');
+  if (!bar) return;
+  const categories = DB.categories;
+  if (!categories.length) { bar.innerHTML = ''; return; }
+  const options = [{ id: '', name: 'Todas' }, ...categories];
+  bar.innerHTML = options.map(c =>
+    `<span class="tag ${currentQuestCategoryFilter === c.id ? 'active' : ''}" data-category="${c.id}">${escHtml(c.name)}</span>`
+  ).join('');
+  bar.querySelectorAll('.tag').forEach(el => {
+    el.onclick = () => {
+      currentQuestCategoryFilter = el.dataset.category;
+      renderQuests();
+    };
+  });
+}
+
 function renderQuests() {
   let quests = DB.quests;
   const search = (document.getElementById('quest-search')?.value || '').toLowerCase();
-  const activeFilters = getActiveTagFilters('quest-tag-filters');
 
   renderQuestStatusFilter();
   if (currentQuestStatusFilter) quests = quests.filter(q => q.status === currentQuestStatusFilter);
 
-  const allTags = [...new Set(quests.flatMap(q => q.tags || []))];
-  renderTagFilterBar('quest-tag-filters', allTags, renderQuests);
+  renderQuestCategoryFilter();
+  if (currentQuestCategoryFilter) quests = quests.filter(q => q.categoryId === currentQuestCategoryFilter);
 
   if (search) quests = quests.filter(q => q.name.toLowerCase().includes(search) || (q.desc||'').toLowerCase().includes(search));
-  if (activeFilters.length) quests = quests.filter(q => activeFilters.every(t => (q.tags||[]).includes(t)));
 
   const tasks = DB.tasks;
+  const categories = DB.categories;
   const el = document.getElementById('quests-list');
   el.innerHTML = quests.length
     ? quests.map(q => {
         const qTasks = tasks.filter(t => t.questId === q.id);
         const done = qTasks.filter(t => t.status === 'completada').length;
         const totalTime = calcQuestTime(q.id);
+        const category = q.categoryId ? categories.find(c => c.id === q.categoryId) : null;
         return `<div class="card" onclick="showView('quest-detail','${q.id}')">
           <div class="card-header">
             <div>
@@ -1125,7 +1169,7 @@ function renderQuests() {
           <div class="card-footer">
             <span class="badge" style="background:var(--surface2);color:var(--muted)">${done}/${qTasks.length} tareas</span>
             ${totalTime ? `<span class="badge" style="background:var(--surface2);color:var(--muted)">⏱ ${totalTime}</span>` : ''}
-            ${(q.tags||[]).map(t => `<span class="tag">${t}</span>`).join('')}
+            ${category ? `<span class="tag">${escHtml(category.name)}</span>` : ''}
           </div>
         </div>`;
       }).join('')
@@ -1326,10 +1370,13 @@ function renderAccounts() {
         const isWaiting = a.status === 'esperando_tokens';
         return `<div class="account-card ${a.status}">
           <div class="account-card-header">
-            <div>
-              <span class="platform-tag">${escHtml(a.platform)}</span>
-              <div class="account-alias" style="margin-top:6px">${escHtml(a.alias || a.email)}</div>
-              <div class="account-email">${escHtml(a.email)}</div>
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span class="color-dot" style="background:${a.color || '#7b5ea7'}" title="Color de la cuenta"></span>
+              <div>
+                <span class="platform-tag">${escHtml(a.platform)}</span>
+                <div class="account-alias" style="margin-top:6px">${escHtml(a.alias || a.email)}</div>
+                <div class="account-email">${escHtml(a.email)}</div>
+              </div>
             </div>
             <span class="badge badge-${a.status}">${statusLabel(a.status)}</span>
           </div>
@@ -1417,6 +1464,49 @@ function renderSettings() {
       ${escHtml(p)}
       ${['Claude','ChatGPT'].includes(p) ? '' : `<button class="platform-remove" onclick="removePlatform('${p}')">✕</button>`}
     </div>`).join('');
+  renderCategoriesSettingsList();
+}
+
+function renderCategoriesSettingsList() {
+  const categories = DB.categories;
+  const el = document.getElementById('categories-list');
+  if (!el) return;
+  el.innerHTML = categories.length
+    ? categories.map(c => `
+      <div class="platform-item">
+        ${escHtml(c.name)}
+        <button class="platform-remove" onclick="removeCategory('${c.id}')">✕</button>
+      </div>`).join('')
+    : '<p class="settings-desc" style="margin:0">Todavía no creaste ninguna categoría.</p>';
+}
+
+function addCategory() {
+  const input = document.getElementById('new-category-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const categories = DB.categories;
+  if (categories.map(c => c.name.toLowerCase()).includes(val.toLowerCase())) {
+    showToast('Ya existe esa categoría', 'error'); return;
+  }
+  categories.push({ id: uid(), name: val, createdAt: now() });
+  DB.saveCategories(categories);
+  input.value = '';
+  renderCategoriesSettingsList();
+  showToast('Categoría agregada ✓', 'success');
+}
+
+function removeCategory(id) {
+  const cat = DB.categories.find(c => c.id === id);
+  if (!cat) return;
+  const affected = DB.quests.filter(q => q.categoryId === id).length;
+  const msg = affected
+    ? `¿Eliminar la categoría "${cat.name}"? ${affected} quest${affected !== 1 ? 's' : ''} quedarán sin categoría.`
+    : `¿Eliminar la categoría "${cat.name}"?`;
+  if (!confirm(msg)) return;
+  DB.saveCategories(DB.categories.filter(c => c.id !== id));
+  if (affected) DB.saveQuests(DB.quests.map(q => q.categoryId === id ? { ...q, categoryId: null } : q));
+  renderCategoriesSettingsList();
+  if (currentView === 'quests') renderQuests();
 }
 
 function addPlatform() {
@@ -1452,6 +1542,7 @@ function exportData() {
     globalNotes: DB.globalNotes,
     questNotes: DB.questNotes,
     platforms: DB.platforms,
+    categories: DB.categories,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1478,6 +1569,7 @@ function importData(e) {
       if (data.globalNotes) DB.saveGlobalNotes(data.globalNotes);
       if (data.questNotes)  DB.saveQuestNotes(data.questNotes);
       if (data.platforms)   DB.savePlatforms(data.platforms);
+      if (data.categories)  DB.saveCategories(data.categories);
       showToast('Datos importados ✓', 'success');
       renderSettings();
     } catch {
@@ -1542,8 +1634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id)?.addEventListener('change', renderTasks);
   });
 
-  // Tag inputs
-  initTagInput('quest-tags-input', 'quest-tags-display');
+  // Tag inputs (notas -- las quests ya no usan tags, ver Q4 en CONTEXT.md sesión 15)
   initTagInput('global-note-tags-input', 'global-note-tags-display');
   initTagInput('qd-note-tags', 'qd-note-tags-display');
 
@@ -1576,6 +1667,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Account modal preload — same exact-match fix as above.
   document.querySelectorAll('[onclick="openModal(\'modal-new-account\')"]').forEach(btn => {
     btn.addEventListener('click', populateAccountPlatformSelect);
+  });
+
+  // Quest modal preload — same exact-match fix as above (Q4, plan de cambios Fase 3).
+  document.querySelectorAll('[onclick="openModal(\'modal-new-quest\')"]').forEach(btn => {
+    btn.addEventListener('click', populateQuestCategorySelect);
   });
 
   // Initial render
@@ -1626,6 +1722,8 @@ window.deleteCurrentQuestNote = deleteCurrentQuestNote;
 window.removeTag = removeTag;
 window.addPlatform = addPlatform;
 window.removePlatform = removePlatform;
+window.addCategory = addCategory;
+window.removeCategory = removeCategory;
 window.exportData = exportData;
 window.importData = importData;
 window.clearAllData = clearAllData;

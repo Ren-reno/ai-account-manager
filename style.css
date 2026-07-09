@@ -298,6 +298,27 @@ body { display: flex; }
   border: 1px solid var(--border);
 }
 
+/* Q5 (plan de cambios, Fase 3): color libre por cuenta, "para identificar de un
+   vistazo" -- se muestra como un punto aparte del border-left de .account-card
+   (ese sigue comunicando status: libre/ocupada/esperando, no se toca). */
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  border: 1px solid rgba(255,255,255,.15);
+}
+.input-color {
+  width: 48px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  cursor: pointer;
+}
+
 .tag {
   font-size: 11px;
   padding: 2px 8px;
