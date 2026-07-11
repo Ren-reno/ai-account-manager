@@ -1270,7 +1270,7 @@ function renderQuestTasks(questId) {
         // secundario, más chico. Sin título, se mantiene el comportamiento de siempre.
         const titleMain = t.title ? escHtml(t.title) : `Tarea #${t.taskNumber}`;
         const numberSub = t.title ? `Tarea #${t.taskNumber} · ` : '';
-        return `<div class="card">
+        return `<div class="card" onclick="editTask('${t.id}')">
           <div class="card-header">
             <div>
               <div class="card-title">${titleMain}</div>
@@ -1278,7 +1278,7 @@ function renderQuestTasks(questId) {
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <span class="badge badge-${t.status}">${statusLabel(t.status)}</span>
-              <div class="card-actions">
+              <div class="card-actions" onclick="event.stopPropagation()">
                 <button class="btn-icon" onclick="editTask('${t.id}')">✎</button>
                 <button class="btn-icon danger" onclick="deleteTask('${t.id}')">✕</button>
               </div>
@@ -1372,7 +1372,7 @@ function renderTasks() {
         const quest = quests.find(q => q.id === t.questId);
         const acc = accounts.find(a => a.id === t.accountId);
         const dur = t.completedAt ? calcDuration(t.createdAt, t.completedAt) : null;
-        return `<div class="card">
+        return `<div class="card" onclick="editTask('${t.id}')">
           <div class="card-header">
             <div>
               <div class="card-title">
@@ -1383,7 +1383,7 @@ function renderTasks() {
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <span class="badge badge-${t.status}">${statusLabel(t.status)}</span>
-              <div class="card-actions">
+              <div class="card-actions" onclick="event.stopPropagation()">
                 <button class="btn-icon" onclick="editTask('${t.id}')">✎</button>
                 <button class="btn-icon danger" onclick="deleteTask('${t.id}')">✕</button>
               </div>
