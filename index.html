@@ -58,32 +58,61 @@
       <span class="date-badge" id="today-date"></span>
     </header>
 
-    <div class="dashboard-grid">
-      <section class="dash-section">
-        <h2 class="section-title">Cuentas ocupadas</h2>
-        <div id="dash-accounts-busy" class="card-list"></div>
+    <!-- D2 (plan de cambios): antes había 4 secciones de estado + accesos rápidos,
+         todas visibles a la vez y agrupadas por tipo de dato (cuentas / quests /
+         tareas por separado) -- "esperando tokens" además estaba partido en dos
+         (tareas por un lado, cuentas sin tarea por otro) aunque para quien mira el
+         dashboard es el mismo concepto: "algo en pausa por cupo, con una hora para
+         volver". Ahora son 3 métricas protagonistas (números, siempre visibles) y
+         el detalle de cada una se expande bajo demanda con toggleDashGroup() --
+         ver renderDashboard() en app.js. -->
+    <div class="dash-metrics">
+      <button type="button" class="stat-card dash-metric" data-group="waiting"
+              onclick="toggleDashGroup('waiting')" aria-expanded="false" aria-controls="dash-group-waiting">
+        <span class="stat-label">Esperando tokens<span class="dash-metric-chevron">▾</span></span>
+        <span class="stat-value" id="dash-metric-waiting">0</span>
+        <span class="stat-sub" id="dash-metric-waiting-sub">&nbsp;</span>
+      </button>
+      <button type="button" class="stat-card dash-metric" data-group="quests"
+              onclick="toggleDashGroup('quests')" aria-expanded="false" aria-controls="dash-group-quests">
+        <span class="stat-label">Quests activas<span class="dash-metric-chevron">▾</span></span>
+        <span class="stat-value" id="dash-metric-quests">0</span>
+        <span class="stat-sub" id="dash-metric-quests-sub">&nbsp;</span>
+      </button>
+      <button type="button" class="stat-card dash-metric" data-group="busy"
+              onclick="toggleDashGroup('busy')" aria-expanded="false" aria-controls="dash-group-busy">
+        <span class="stat-label">Cuentas ocupadas<span class="dash-metric-chevron">▾</span></span>
+        <span class="stat-value" id="dash-metric-busy">0</span>
+        <span class="stat-sub" id="dash-metric-busy-sub">&nbsp;</span>
+      </button>
+    </div>
+
+    <div class="dash-groups">
+      <section class="dash-group" id="dash-group-waiting">
+        <div class="dash-group-inner">
+          <div id="dash-waiting-list" class="card-list"></div>
+        </div>
       </section>
-      <section class="dash-section">
-        <h2 class="section-title">Quests activas</h2>
-        <div id="dash-quests-active" class="card-list"></div>
+      <section class="dash-group" id="dash-group-quests">
+        <div class="dash-group-inner">
+          <div id="dash-quests-active" class="card-list"></div>
+        </div>
       </section>
-      <section class="dash-section">
-        <h2 class="section-title">Tareas esperando tokens</h2>
-        <div id="dash-tasks-waiting" class="card-list"></div>
-      </section>
-      <section class="dash-section">
-        <h2 class="section-title">Cuentas esperando tokens (sin tarea)</h2>
-        <div id="dash-accounts-waiting" class="card-list"></div>
-      </section>
-      <section class="dash-section">
-        <h2 class="section-title">Acciones rápidas</h2>
-        <div class="quick-actions">
-          <button class="btn-primary" onclick="openModal('modal-new-quest')">+ Nueva Quest</button>
-          <button class="btn-primary" onclick="openModal('modal-new-task')">+ Nueva Tarea</button>
-          <button class="btn-secondary" onclick="openModal('modal-new-note-global')">+ Nota global</button>
+      <section class="dash-group" id="dash-group-busy">
+        <div class="dash-group-inner">
+          <div id="dash-accounts-busy" class="card-list"></div>
         </div>
       </section>
     </div>
+
+    <section class="dash-section dash-quick-actions">
+      <h2 class="section-title">Acciones rápidas</h2>
+      <div class="quick-actions">
+        <button class="btn-primary" onclick="openModal('modal-new-quest')">+ Nueva Quest</button>
+        <button class="btn-primary" onclick="openModal('modal-new-task')">+ Nueva Tarea</button>
+        <button class="btn-secondary" onclick="openModal('modal-new-note-global')">+ Nota global</button>
+      </div>
+    </section>
   </div>
 
   <!-- ===== QUESTS ===== -->

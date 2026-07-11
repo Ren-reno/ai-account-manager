@@ -1004,16 +1004,95 @@ function renderTagFilterBar(barId, tags, callback) {
 // ===== RENDER VIEWS =====
 
 // --- Dashboard ---
+// D2 (plan de cambios): antes "tareas esperando tokens" y "cuentas esperando
+// tokens sin tarea" eran 2 secciones separadas del dashboard, aunque para quien
+// mira el tablero es un solo concepto -- algo en pausa por cupo, con una hora
+// para volver. Este helper arma esa lista unificada, ordenada por fecha de
+// reactivación (más próxima primero). reactivation/waitReactivation no son
+// campos obligatorios (ver saveTask() y saveAccountWait()), así que un item sin
+// fecha va al final en vez de romper el sort o mezclarse al azar con los que sí
+// tienen hora.
+function buildDashWaitingItems(tasks, accounts, quests) {
+  const fromTasks = tasks.filter(t => t.status === 'esperando_tokens').map(t => {
+    const quest = quests.find(q => q.id === t.questId);
+    const acc = accounts.find(a => a.id === t.accountId);
+    return {
+      reactivation: t.reactivation || '',
+      goTo: `showView('quest-detail','${t.questId}')`,
+      title: `Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''} — ${escHtml(quest?.name || '')}`,
+      sub: acc ? `${escHtml(acc.platform)} · ${escHtml(acc.alias || acc.email)}` : '',
+      desc: '',
+    };
+  });
+  const fromAccounts = accounts.filter(a => a.status === 'esperando_tokens').map(a => ({
+    reactivation: a.waitReactivation || '',
+    goTo: `showView('accounts')`,
+    title: escHtml(a.alias || a.email),
+    sub: escHtml(a.platform),
+    desc: a.waitNote ? escHtml(a.waitNote) : '',
+  }));
+  return [...fromTasks, ...fromAccounts].sort((x, y) => {
+    if (!x.reactivation && !y.reactivation) return 0;
+    if (!x.reactivation) return 1;   // sin fecha, al final
+    if (!y.reactivation) return -1;
+    return new Date(x.reactivation) - new Date(y.reactivation);
+  });
+}
+
 function renderDashboard() {
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' });
   const accounts = DB.accounts;
   const tasks = DB.tasks;
   const quests = DB.quests;
 
-  // Busy accounts
+  // ===== Métrica 1: esperando tokens (unificada, ver buildDashWaitingItems) =====
+  const waitingItems = buildDashWaitingItems(tasks, accounts, quests);
+  document.getElementById('dash-metric-waiting').textContent = waitingItems.length;
+  const nextWithDate = waitingItems.find(i => i.reactivation);
+  document.getElementById('dash-metric-waiting-sub').textContent = !waitingItems.length
+    ? 'sin pendientes 🟢'
+    : nextWithDate ? `próxima: ${fmtDatetime(nextWithDate.reactivation)}` : 'sin hora definida';
+  document.getElementById('dash-waiting-list').innerHTML = waitingItems.length
+    ? waitingItems.map(item => `<div class="card" style="cursor:pointer" onclick="${item.goTo}">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${item.title}</div>
+            ${item.sub ? `<div class="card-sub">${item.sub}</div>` : ''}
+          </div>
+          <span class="badge badge-waiting">esperando</span>
+        </div>
+        ${item.desc ? `<div class="card-desc card-desc-clamp">${item.desc}</div>` : ''}
+        ${item.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(item.reactivation)}</span></div>` : ''}
+      </div>`).join('')
+    : '<div class="list-empty">Sin tareas ni cuentas esperando tokens 🟢</div>';
+
+  // ===== Métrica 2: quests activas =====
+  const activeQ = quests.filter(q => q.status === 'activa');
+  document.getElementById('dash-metric-quests').textContent = activeQ.length;
+  const pendingInActive = tasks.filter(t => t.status !== 'completada' && activeQ.some(q => q.id === t.questId)).length;
+  document.getElementById('dash-metric-quests-sub').textContent = activeQ.length
+    ? `${pendingInActive} tarea${pendingInActive === 1 ? '' : 's'} pendiente${pendingInActive === 1 ? '' : 's'}`
+    : 'sin quests activas';
+  document.getElementById('dash-quests-active').innerHTML = activeQ.length
+    ? activeQ.map(q => {
+        const qTasks = tasks.filter(t => t.questId === q.id);
+        const done = qTasks.filter(t => t.status === 'completada').length;
+        return `<div class="card" style="cursor:pointer" onclick="showView('quest-detail','${q.id}')">
+          <div class="card-header">
+            <div class="card-title">${escHtml(q.name)}</div>
+            <span class="badge badge-active">activa</span>
+          </div>
+          <div class="card-sub">${done}/${qTasks.length} tareas completadas</div>
+        </div>`;
+      }).join('')
+    : '<div class="list-empty">Sin quests activas</div>';
+
+  // ===== Métrica 3: cuentas ocupadas =====
   const busyAccounts = accounts.filter(a => a.status === 'busy');
-  const busyEl = document.getElementById('dash-accounts-busy');
-  busyEl.innerHTML = busyAccounts.length
+  document.getElementById('dash-metric-busy').textContent = busyAccounts.length;
+  const freeAccounts = accounts.filter(a => a.status === 'free').length;
+  document.getElementById('dash-metric-busy-sub').textContent = `${freeAccounts} libre${freeAccounts === 1 ? '' : 's'} ahora`;
+  document.getElementById('dash-accounts-busy').innerHTML = busyAccounts.length
     ? busyAccounts.map(a => {
         const task = a.activeTaskId ? tasks.find(t => t.id === a.activeTaskId) : null;
         const quest = task ? quests.find(q => q.id === task.questId) : null;
@@ -1032,58 +1111,23 @@ function renderDashboard() {
         </div>`;
       }).join('')
     : '<div class="list-empty">Sin cuentas ocupadas 🟢</div>';
+}
 
-  // Active quests
-  const activeQ = quests.filter(q => q.status === 'activa');
-  const qEl = document.getElementById('dash-quests-active');
-  qEl.innerHTML = activeQ.length
-    ? activeQ.map(q => {
-        const qTasks = tasks.filter(t => t.questId === q.id);
-        const done = qTasks.filter(t => t.status === 'completada').length;
-        return `<div class="card" style="cursor:pointer" onclick="showView('quest-detail','${q.id}')">
-          <div class="card-header">
-            <div class="card-title">${escHtml(q.name)}</div>
-            <span class="badge badge-active">activa</span>
-          </div>
-          <div class="card-sub">${done}/${qTasks.length} tareas completadas</div>
-        </div>`;
-      }).join('')
-    : '<div class="list-empty">Sin quests activas</div>';
-
-  // Waiting tasks
-  const waiting = tasks.filter(t => t.status === 'esperando_tokens');
-  const wEl = document.getElementById('dash-tasks-waiting');
-  wEl.innerHTML = waiting.length
-    ? waiting.map(t => {
-        const quest = quests.find(q => q.id === t.questId);
-        const acc = accounts.find(a => a.id === t.accountId);
-        return `<div class="card" style="cursor:pointer" onclick="showView('quest-detail','${t.questId}')">
-          <div class="card-header">
-            <div class="card-title">Tarea #${t.taskNumber}${t.title ? ' — ' + escHtml(t.title) : ''} — ${escHtml(quest?.name || '')}</div>
-            <span class="badge badge-waiting">esperando</span>
-          </div>
-          <div class="card-sub">${acc ? `${escHtml(acc.platform)} · ${escHtml(acc.alias || acc.email)}` : ''}</div>
-          ${t.reactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(t.reactivation)}</span></div>` : ''}
-        </div>`;
-      }).join('')
-    : '<div class="list-empty">Sin tareas en espera</div>';
-
-  // Accounts marked "esperando tokens" directly, sin tarea asociada (pedido del usuario)
-  const waitingAccounts = accounts.filter(a => a.status === 'esperando_tokens');
-  const waEl = document.getElementById('dash-accounts-waiting');
-  waEl.innerHTML = waitingAccounts.length
-    ? waitingAccounts.map(a => `<div class="card" style="cursor:pointer" onclick="showView('accounts')">
-          <div class="card-header">
-            <div>
-              <div class="card-title">${escHtml(a.alias || a.email)}</div>
-              <div class="card-sub">${escHtml(a.platform)} · ${escHtml(a.email)}</div>
-            </div>
-            <span class="badge badge-esperando_tokens">esperando</span>
-          </div>
-          ${a.waitNote ? `<div class="card-desc card-desc-clamp">${escHtml(a.waitNote)}</div>` : ''}
-          ${a.waitReactivation ? `<div class="card-footer"><span class="reactivation-badge">⟳ ${fmtDatetime(a.waitReactivation)}</span></div>` : ''}
-        </div>`).join('')
-    : '<div class="list-empty">Sin cuentas esperando tokens 🟢</div>';
+// D2 (plan de cambios): expande/colapsa el detalle de una métrica del dashboard.
+// No necesita guardar el estado "abierto" en ninguna variable global: index.html
+// precarga las 7 vistas en el DOM y showView() sólo alterna la clase .active
+// (nunca destruye ni recrea #view-dashboard), y renderDashboard() de acá arriba
+// sólo reescribe el innerHTML de los contenedores internos (#dash-waiting-list,
+// etc.), nunca la clase .open de .dash-group ni el aria-expanded del botón --
+// así que el estado sobrevive solo, tanto a un re-render (p. ej. checkAutoReleases
+// corriendo cada 30s de fondo) como a navegar a otra vista y volver.
+function toggleDashGroup(key) {
+  const section = document.getElementById('dash-group-' + key);
+  const metric = document.querySelector(`.dash-metric[data-group="${key}"]`);
+  if (!section || !metric) return;
+  const willOpen = !section.classList.contains('open');
+  section.classList.toggle('open', willOpen);
+  metric.setAttribute('aria-expanded', String(willOpen));
 }
 
 // --- Quests ---
@@ -1728,3 +1772,4 @@ window.exportData = exportData;
 window.importData = importData;
 window.clearAllData = clearAllData;
 window.showView = showView;
+window.toggleDashGroup = toggleDashGroup;

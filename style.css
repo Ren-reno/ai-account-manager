@@ -39,6 +39,19 @@
   --font-body: system-ui, -apple-system, sans-serif;
   --sidebar-width: 210px;
   --note-max-width: 720px;
+
+  /* T1 (plan de cambios): escala tipográfica de títulos centralizada. Antes cada
+     selector traía su propio font-size suelto (13/14/15/16/22px repartidos sin
+     un criterio único) — acá se nombra cada nivel una sola vez y los selectores
+     de abajo referencian la variable en vez de un número mágico. --fs-h2 unifica
+     un caso real de inconsistencia: modal-header h2 ya usaba 16px, settings-section
+     h2 usaba 15px para el mismo rol semántico (título de sub-sección con nombre
+     propio) sin ninguna razón para diferir. */
+  --fs-eyebrow: 11px;      /* etiquetas en mayúscula: section-title, stat-label */
+  --fs-label-sm: 13px;     /* títulos terciarios: danger-zone h3, note-nav-title */
+  --fs-body-strong: 14px;  /* título dentro de una card: card-title, account-alias */
+  --fs-h2: 16px;           /* título de sub-sección con nombre propio: modales, settings */
+  --fs-h1: 22px;           /* título de vista: view-header h1, quest-detail h1 */
 }
 
 html, body {
@@ -160,10 +173,26 @@ body { display: flex; }
 
 .view-header h1 {
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: var(--fs-h1);
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.3px;
+}
+
+/* T1 (plan de cambios): #qd-title (el <h1> del detalle de quest) no tenía ninguna
+   regla propia -- no está dentro de .view-header, así que caía al h1 por defecto
+   del navegador (~2em, bold, con márgenes de bloque de ~0.67em arriba/abajo que
+   además se aplican como margen real dentro del flex de .quest-detail-header,
+   corriendo la alineación vertical con los botones de al lado). Se le da el mismo
+   tratamiento que el resto de los títulos de vista para que entrar a una quest no
+   cambie la tipografía de la página. */
+#qd-title {
+  font-family: var(--font-mono);
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+  margin: 0;
 }
 
 .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -261,7 +290,7 @@ body { display: flex; }
 .card:hover { border-color: var(--muted); }
 
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.card-title { font-weight: 600; font-size: 14px; color: var(--text); }
+.card-title { font-weight: 600; font-size: var(--fs-body-strong); color: var(--text); }
 .card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .card-desc { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
 .card-desc-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -470,7 +499,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
 }
 .note-nav-item:hover { background: var(--surface2); }
 .note-nav-item.active { background: var(--accent-dim); border-color: var(--border); }
-.note-nav-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.note-nav-title { font-size: var(--fs-label-sm); font-weight: 500; color: var(--text); }
 .note-nav-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 .notes-editor {
@@ -546,16 +575,63 @@ textarea.input-field { resize: vertical; min-height: 70px; }
 .empty-state span { font-size: 36px; opacity: .3; }
 
 /* ===== DASHBOARD ===== */
-.dashboard-grid {
+
+/* D2 (plan de cambios): franja de métricas protagonistas. Reusa .stat-card/
+   .stat-label/.stat-value tal cual los define STATS más abajo -- mismo
+   componente, no uno nuevo en paralelo -- y le suma .dash-metric encima para
+   el comportamiento de botón clickeable. */
+.dash-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
 }
 
+.dash-metric {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+}
+.dash-metric:hover { background: var(--surface2); }
+.dash-metric:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Mismo lenguaje de color que ya usa .account-card para comunicar estado por
+   borde (warn = esperando, accent = activo, muted = ocupado/neutro -- §6 del
+   CONTEXT.md) en vez de inventar una paleta nueva para el dashboard. Selector
+   compuesto (.stat-card.dash-metric) a propósito: el border-left de acá tiene
+   que ganarle al `border` (las 4 esquinas) que ya trae .stat-card, y con la
+   misma especificidad gana el que esté después en el archivo -- STATS está
+   más abajo que DASHBOARD, así que un .dash-metric solo perdería contra
+   .stat-card. El selector compuesto lo hace correcto sin depender del orden. */
+.stat-card.dash-metric[data-group="waiting"] { border-left: 3px solid var(--warn); }
+.stat-card.dash-metric[data-group="quests"]  { border-left: 3px solid var(--accent); }
+.stat-card.dash-metric[data-group="busy"]    { border-left: 3px solid var(--muted); }
+
+.dash-metric .stat-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dash-metric-chevron { display: inline-block; font-size: 10px; transition: transform .15s ease; }
+.dash-metric[aria-expanded="true"] .dash-metric-chevron { transform: rotate(180deg); }
+
+/* Detalle de cada métrica: colapsado por defecto, se expande bajo demanda con
+   toggleDashGroup() en app.js. grid-template-rows 0fr->1fr anima el alto sin
+   tener que medirlo en JS (mismo espíritu que la transición por transform que
+   ya usa .sidebar para el menú mobile, pero para alto en vez de posición). */
+.dash-groups { margin-top: 14px; }
+.dash-group {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .18s ease;
+}
+.dash-group-inner { overflow: hidden; min-height: 0; }
+.dash-group.open { grid-template-rows: 1fr; }
+.dash-group.open .dash-group-inner { padding-top: 14px; }
+
 .dash-section { }
+.dash-quick-actions { margin-top: 24px; }
 .section-title {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-eyebrow);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: var(--muted);
@@ -586,7 +662,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
 .account-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .account-card-header > div { min-width: 0; }
 .account-card-header > .badge { flex-shrink: 0; }
-.account-alias { font-weight: 600; font-size: 14px; overflow-wrap: break-word; }
+.account-alias { font-weight: 600; font-size: var(--fs-body-strong); overflow-wrap: break-word; }
 .account-email { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); overflow-wrap: break-word; }
 .account-task-info { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .account-task-info strong { color: var(--text); }
@@ -606,7 +682,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   padding: 18px;
 }
 
-.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-family: var(--font-mono); }
+.stat-label { font-size: var(--fs-eyebrow); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-family: var(--font-mono); }
 .stat-value { font-size: 32px; font-family: var(--font-mono); font-weight: 700; color: var(--accent); margin: 4px 0; line-height: 1; }
 .stat-sub { font-size: 12px; color: var(--muted); }
 
@@ -624,7 +700,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   border-radius: var(--radius);
   padding: 20px;
 }
-.settings-section h2 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.settings-section h2 { font-size: var(--fs-h2); font-weight: 600; margin-bottom: 6px; }
 .settings-desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
 
 .tag-list-edit { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -654,7 +730,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   padding-top: 16px;
   border-top: 1px solid rgba(224,90,106,.2);
 }
-.danger-zone h3 { font-size: 13px; color: var(--danger); margin-bottom: 10px; }
+.danger-zone h3 { font-size: var(--fs-label-sm); color: var(--danger); margin-bottom: 10px; }
 
 .import-label {
   display: inline-flex;
@@ -708,7 +784,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
 }
-.modal-header h2 { font-size: 16px; font-weight: 600; }
+.modal-header h2 { font-size: var(--fs-h2); font-weight: 600; }
 
 .modal-close {
   background: none;
@@ -827,7 +903,7 @@ textarea.input-field { resize: vertical; min-height: 70px; }
   .sidebar.open { transform: translateX(0); }
   .main { margin-left: 0; padding: 16px; padding-top: 64px; }
   .notes-layout { grid-template-columns: 1fr; height: auto; }
-  .dashboard-grid { grid-template-columns: 1fr; }
+  .dash-metrics { grid-template-columns: 1fr; }
 
   .mobile-nav-toggle { display: flex; }
   .sidebar-backdrop.open { display: block; }
