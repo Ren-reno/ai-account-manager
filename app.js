@@ -1186,6 +1186,12 @@ function renderQuests() {
 
   if (search) quests = quests.filter(q => q.name.toLowerCase().includes(search) || (q.desc||'').toLowerCase().includes(search));
 
+  // Pedido del usuario: últimas editadas primero. updatedAt es opcional (solo se
+  // setea en saveQuest() al editar, ver §3/modelo de datos) -- una quest que nunca
+  // se editó cae al fallback de su createdAt, que sí es obligatorio, así que no
+  // hace falta contemplar un caso "sin fecha" (a diferencia de buildDashWaitingItems).
+  quests.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+
   const tasks = DB.tasks;
   const categories = DB.categories;
   const el = document.getElementById('quests-list');
